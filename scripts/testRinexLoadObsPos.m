@@ -5,7 +5,7 @@ clc
 diary processing.log
 addpath(genpath('../src'))
 
-jab1file = '../data/JAB1080mM.19o';
+jab1file = '../data/JAB1080M.19o';
 jab1brdc = '../data/brdc';
 
 param = OBSRNX.getDefaults();
@@ -18,3 +18,4 @@ jab1.saveToMAT();
 
 % Load from MAT
 %jab1 = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
+diary off
