@@ -1,4 +1,4 @@
-function [head, body, listMerged] = mergeBroadcastMessages(fileList, writeMerged)
+function [head, body, listMerged] = mergeBroadcastMessages(fileList,folderEph,writeMerged)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to merge several navigation files defined in fileList which are
 % stored in folder brdc! Function check for version of files (not merge
@@ -31,7 +31,7 @@ listMerged = cell(length(fileList),1);
 % Looping over input file list
 for i = 1:length(fileList)
     filename = fileList{i};
-    finp = fopen(['brdc/', filename],'r');
+    finp = fopen(fullfile(folderEph,filename),'r');
     raw = textscan(finp, '%s', 'Delimiter', '\n', 'Whitespace', '');
     raw = raw{1};
     [hdr, endOfHeaderIndex] = getNavigationHeader(raw);
@@ -78,7 +78,7 @@ if writeMerged
     filenameOut = ['merged', datestr(now,'HHMMSS'), '.brdc'];
     
     % Write simple header
-    fout = fopen(filenameOut,'w');
+    fout = fopen(fullfile(folderEph,filenameOut),'w');
     fprintf(fout,'                 MERGED NEVIGATION MESSAGE                  COMMENT             \n');
     fprintf(fout,'MATLAB "mergeBroadcastMessage.m"        %20sPGM / RUN BY / DATE \n',datestr(now,'dd-mmm-yy HH:MM     '));
     fprintf(fout,'                                                            END OF HEADER       \n');

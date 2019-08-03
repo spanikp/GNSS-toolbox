@@ -64,8 +64,9 @@ try
     % Default method using Matlab mget function
     server = ftp(servername);    % Open FTP server
     cd(server, path);            % Change directory at FTP server
-    sf = struct(server);
-    sf.jobject.enterLocalPassiveMode();             %% This line is needed in my case due to the issue with passive Matlab connection (https://undocumentedmatlab.com/blog/solving-an-mput-ftp-hang-problem) 
+    %sf = struct(server);
+    % The following line is needed in my case due to the issue with passive Matlab connection (https://undocumentedmatlab.com/blog/solving-an-mput-ftp-hang-problem) 
+    %sf.jobject.enterLocalPassiveMode();
     
     mget(server,filename);       % Download file
 catch        
@@ -82,14 +83,17 @@ end
 
 % extract file
 if extract
-	[status, cmdout] = system('7z --help');
-	if ~isempty(strfind(cmdout,'not recognized as an internal or external command'))
+	[~, cmdout] = system('7z --help');
+	if contains(cmdout,'not recognized as an internal or external command')
 		cd(currentFolder);
 		error('\n7-Zip application not found!\nPlease install before continue or provide unzipped navigation messages.\nLink to download: https://www.7-zip.org/download.html');
 	else
         fprintf('[extract]\n');
         % unix(['gzip -d -f ', filename]); % If gzip is installed
         system(['7z e ', filename]);       % If 7z is installed
+        
+        % Remove original navigation message
+        delete(filename)
         
         % Rename navigation message of EC systems
         if contains('EC',satsys)

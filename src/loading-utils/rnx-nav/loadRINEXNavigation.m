@@ -1,4 +1,4 @@
-function brdc = loadRINEXNavigation(satsys,fileList)
+function brdc = loadRINEXNavigation(satsys,folderEph,fileList)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to load navigation message in RINEX v2 (GPS, GLONASS) or RINEX 
 % v3 format (GALILEO, BEIDOU). 
@@ -86,7 +86,7 @@ end
 brdc = struct('hdr', struct(), 'sat', 0, 'gnss', satsys);
 
 % Merging content of all input files and return raw body part
-[head, body, filesMerged] = mergeBroadcastMessages(fileList, 0);
+[head, body, filesMerged] = mergeBroadcastMessages(fileList,folderEph,0);
 brdc.hdr = head;
 brdc.files = filesMerged;
 

@@ -15,4 +15,6 @@ jab1.saveToMAT();
 % Load from MAT
 %jab1 = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
 
-
+% Prepare broadcast eph data
+timeFrame = jab1.t([1,end],1:3);
+prepareEph(jab1.gnss,'broadcast','../data/brdc',timeFrame)
