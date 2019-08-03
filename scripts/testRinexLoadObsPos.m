@@ -13,6 +13,6 @@ jab1 = OBSRNX(jab1file);
 jab1.saveToMAT();
 
 % Load from MAT
-%jab1 = OBSRNX.loadFromMAT('../data\JAB1080M.mat');
+%jab1 = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
 
 
