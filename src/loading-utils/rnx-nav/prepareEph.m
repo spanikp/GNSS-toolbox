@@ -11,7 +11,8 @@ function prepareEph(gnss,ephType,folderEph,timeFrame)
 
             case 'precise'
                 
+            otherwise
+                fprintf('Only ephType of "broadcast" or "precise" available!\n');
         end
     end
-    a = 1;
 end
