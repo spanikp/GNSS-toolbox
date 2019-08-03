@@ -7,9 +7,10 @@ classdef OBSRNX
         t (:,9) double
         obs
         obsqi
+        satTimeFlags
         sat
         satblock
-		satpos
+		satpos (1,:) SATPOS
 	end
 	
 	methods 
@@ -109,14 +110,38 @@ classdef OBSRNX
                 % Adding field to structure of available satellites in file
                 obj.sat = struct();
                 obj.satblock = struct();
+                obj.satTimeFlags = struct();
                 for i = 1:length(obj.gnss)
                     s = obj.gnss(i);
-                    satSel = cellfun(@(x) sum(sum(x))~=0, obj.obs.(obj.gnss(i)));
+                    satSel = cellfun(@(x) sum(sum(x))~=0, obj.obs.(s));
                     obj.sat.(s) = find(satSel);
                     obj.satblock.(s) = getPRNBlockNumber(obj.sat.(s),s);
                     obj.obs.(s)(~satSel) = [];
                     obj.obsqi.(s)(~satSel) = [];
+                    obj.satTimeFlags.(s) = false(size(obj.t,1),nnz(satSel));
+                    for j = 1:numel(obj.sat.(s))
+                        obj.satTimeFlags.(s)(:,j) = sum(obj.obs.(s){j},2) ~= 0;
+                    end
                 end
+            end
+        end
+        function obj = computeSatPosition(obj,ephType)
+            validateattributes(ephType,{'char'},{})
+            assert(ismember(ephType,{'broadcast','precise'}),'Input "ephType" can be set to "broadcast" or "precise" only!')
+            
+            switch ephType
+                case 'broadcast'
+                    f = 'brdc';
+                case 'precise'
+                    f = 'eph';
+            end
+            navFolder = fullfile(obj.path,f);
+            for i = 1:numel(obj.gnss)
+                s = obj.gnss(i);
+                recpos = obj.header.approxPos;
+                satList = obj.sat.(s);
+                satFlags = obj.satTimeFlags.(s);
+                obj.satpos(i) = SATPOS(s,satList,ephType,navFolder,obj.t(:,7:8),recpos,satFlags);
             end
         end
         function saveToMAT(obj,outMatFullFileName)
