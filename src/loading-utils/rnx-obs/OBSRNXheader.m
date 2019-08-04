@@ -3,6 +3,7 @@ classdef OBSRNXheader
     	interval (1,1) double
         approxPos (1,3) double
         gnss (1,:) char
+        leapSeconds (1,1) double
 		obsTypes struct
 		noObsTypes (1,:) double
         version (1,:) char
@@ -10,10 +11,11 @@ classdef OBSRNXheader
         filename (1,:) char
         headerSize (1,1) double
         marker (1,1) struct = struct('name','','number','','type','')
-        receiver (1,1) struct = struct('serialnumber','','type','','version','')
+        receiver (1,1) struct = struct('serialnumber','','type','','version','','clockOffsetApplied',false)
         antenna (1,1) struct = struct('serialnumber','','type','','offset',zeros(3,1),'offsetType','')
         observer (1,:) char
         agency (1,:) char
+        signalStrengthUnit (1,:) char
     end
    
     methods
@@ -50,6 +52,12 @@ classdef OBSRNXheader
                 if contains(line,'APPROX POSITION XYZ')
                     obj.approxPos = sscanf(line(1:60),'%f');
                 end
+                if contains(line,'LEAP SECONDS')
+                    obj.leapSeconds = str2double(strtrim(line(1:60)));
+                end
+                if contains(line,'SIGNAL STRENGTH UNIT')
+                    obj.signalStrengthUnit = strtrim(line(1:60));
+                end
                 if contains(line,'MARKER NAME')
                     obj.marker.name = strtrim(line(1:60));
                 end
@@ -68,7 +76,11 @@ classdef OBSRNXheader
                     obj.receiver.type = strtrim(line(21:40));
                     obj.receiver.version = strtrim(line(41:60));
                 end
+                if contains(line,'RCV CLOCK OFFS APPL')
+                    obj.receiver.clockOffsetApplied = logical(str2double(strtrim(line(1:60))));
+                end
                 if contains(line,'ANTENNA: DELTA H/E/N')
+                    obj.antenna.offset = sscanf(line(1:60),'%f');
                     match = regexp(line,'[A-Z]/[A-Z]/[A-Z]','match');
                     obj.antenna.offsetType = match{1};
                     
@@ -107,16 +119,26 @@ classdef OBSRNXheader
             obj.printSummary();
         end
         function printSummary(obj)
+            aot = strsplit(obj.antenna.offsetType,'/');
+            fprintf([repmat('#',[1 80]), '\n']);
             fprintf('RINEX version:              %s\n',obj.version);
+            fprintf('RINEX marker/number:        %s/%s\n',obj.marker.name,obj.marker.number);
+            fprintf('RINEX receiver:             %s (%s, %s)\n',obj.receiver.type,obj.receiver.serialnumber,obj.receiver.version);
+            fprintf('RINEX antenna:              %s (%s)\n',obj.antenna.type,obj.antenna.serialnumber);
+            fprintf('RINEX antenna offset:       %s = %7.4f m\n',aot{1},obj.antenna.offset(1));
+            for i = 2:3
+                fprintf('                            %s = %7.4f m\n',aot{i},obj.antenna.offset(i));
+            end
+            fprintf('RINEX ARP position:         X = %14.4f m\n',obj.approxPos(1));
+            fprintf('                            Y = %14.4f m\n',obj.approxPos(2));
+            fprintf('                            Z = %14.4f m\n',obj.approxPos(3));
             fprintf('RINEX recording interval:   %d s\n',obj.interval);
             fprintf('RINEX available systems:    %s\n',obj.gnss);
-            fprintf('RINEX position:             X = %.3f m\n',obj.approxPos(1));
-            fprintf('                            Y = %.3f m\n',obj.approxPos(2));
-            fprintf('                            Z = %.3f m\n',obj.approxPos(3));
             for i = 1:numel(obj.gnss)
                 s = obj.gnss(i);
                 fprintf('RINEX %s obs types (%2d):     %s\n',s,obj.noObsTypes(i),strjoin(obj.obsTypes.(s),','));
             end
+            fprintf([repmat('#',[1 80]), '\n']);
         end
     end
 end
