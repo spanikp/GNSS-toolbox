@@ -5,6 +5,10 @@ classdef OBSRNX
         filename (1,:) char
         gnss (1,:) char
         t (:,9) double
+        epochFlags (1,1) struct = struct('OK',[],'PowerFailure',[],'StartMovingAntenna',[],...
+                                         'NewStationOccupation',[],'HeaderInfo',[],...
+                                         'ExternalEvent',[],'CycleSlipRecord',[]);
+        recClockOffset (:,1) double
         obs
         obsqi
         satTimeFlags
@@ -20,6 +24,13 @@ classdef OBSRNX
             end
             hdr = OBSRNXheader(filepath);
             validateattributes(hdr,{'OBSRNXheader'},{})
+            if ~strcmp(hdr.marker.type,'GEODETIC')
+                warning('Input RINEX marker type differs from "GEODETIC" or does not contain "MARKER TYPE" record. RINEX may contain kinematic records for which this reader was not programmed and can fail!');
+                answer = input('Do you wish to continue? [Y/N] > ','s');
+                if ~strcmpi(answer,'y') && ~strcmpi(answer,'yes')
+                    return
+                end
+            end
             obj.header = hdr;
             obj.path = obj.header.path;
             obj.filename = obj.header.filename;
@@ -42,15 +53,42 @@ classdef OBSRNX
                 obj.obs = struct();
                 
                 % Find time moments
-                fprintf('Resolving measurement''s epochs ... ')
+                fprintf('Resolving measurement''s epochs ...\n')
                 timeSelection = cellfun(@(x) strcmp(x(1),'>'), bodyBuffer);
-                gregTime = cell2mat(cellfun(@(x) sscanf(x,'> %f %f %f %f %f %f')',...
+                epochRecords = cell2mat(cellfun(@(x) sscanf(x,'> %f %f %f %f %f %f %f %f')',...
                     bodyBuffer(timeSelection),'UniformOutput',false));
+                
+                % Resolving epoch flags
+                % For details see (RINEX 3.04, GNSS Observation Data File - Data Record Description)
+                % 0 - OK
+                % 1 - Power failure
+                % 2 - StartMovingAntenna
+                % 3 - NewStationOccupation
+                % 4 - HeaderInfo
+                % 5 - ExternalEvent
+                % 6 - CycleSlipRecord
+
+                epochRecordsNumber = epochRecords(:,8);
+                epochFlagNames = {'OK', 'PowerFailure', 'StartMovingAntenna', 'NewStationOccupation',...
+                                  'HeaderInfo', 'ExternalEvent', 'CycleSlipRecord'};
+                epochRecordsToRemove = 0;
+                for epochFlag = 0:6
+                    epochFlagName = epochFlagNames{epochFlag+1};
+                    obj.epochFlags.(epochFlagName) = epochRecords(:,7) == epochFlag;
+                    fprintf('Epoch flag %d: %d records\n',epochFlag,nnz(obj.epochFlags.(epochFlagName)));
+                    if epochFlag ~= 0
+                        epochRecordsToRemove = epochRecordsToRemove + nnz(obj.epochFlags.(epochFlagName));
+                    end
+                end
+                fprintf('Remove non-zero epoch flags: %d records removed\n',epochRecordsToRemove);
+                
+                gregTime = epochRecords(obj.epochFlags.OK,1:6);
                 [GPSWeek, GPSSecond, ~, ~] = greg2gps(gregTime);
                 obj.t = [gregTime, GPSWeek, GPSSecond, datenum(gregTime)];
                 
                 % Allocating cells for satellites
                 noRows = size(obj.t,1);
+                obj.recClockOffset = zeros(noRows,1);
                 for i = 1:length(obj.gnss)
                     s = obj.gnss(i);
                     noCols = obj.header.noObsTypes(obj.header.gnss == s);
@@ -61,18 +99,30 @@ classdef OBSRNX
                     obj.obsqi.(s) = cell(1,50);
                     obj.obsqi.(s)(:) = {repmat(' ',[noRows,noCols*2])};
                 end
-                
-                fprintf('[done]\n')
                 fprintf('Totally %d epochs will be loaded.\n\n',size(obj.t,1));
                 
                 % Reading body part line by line
                 carriageReturn = 0;
                 idxt = 0;
+                iEpoch = 0;
+                nLinesToSkip = 0;
                 for i = 1:length(bodyBuffer)
-                    line = bodyBuffer{i};
+                    if nLinesToSkip > 0
+                        nLinesToSkip = nLinesToSkip-1;
+                        continue
+                    end
                     
+                    line = bodyBuffer{i};
                     if strcmp(line(1),'>')
-                        idxt = idxt + 1;
+                        iEpoch = iEpoch + 1;
+                        if obj.epochFlags.OK(iEpoch)
+                            idxt = idxt + 1;
+                            if numel(line) > 35
+                                obj.recClockOffset(idxt) = str2double(line(36:end));
+                            end
+                        else
+                            nLinesToSkip = epochRecordsNumber(iEpoch);
+                        end
                     else
                         sys = line(1);
                         sysidx = find(sys == obj.header.gnss);
