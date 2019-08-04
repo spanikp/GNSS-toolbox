@@ -9,6 +9,11 @@ classdef OBSRNXheader
         path (1,:) char
         filename (1,:) char
         headerSize (1,1) double
+        marker (1,1) struct = struct('name','','number','','type','')
+        receiver (1,1) struct = struct('serialnumber','','type','','version','')
+        antenna (1,1) struct = struct('serialnumber','','type','','offset',zeros(3,1),'offsetType','')
+        observer (1,:) char
+        agency (1,:) char
     end
    
     methods
@@ -37,16 +42,41 @@ classdef OBSRNXheader
                 
                 if lineIndex == 1
                     if contains(line,'RINEX VERSION / TYPE') && contains(line,'OBSERVATION DATA')
-                        obj.version = strrep(line(1:20),' ','');
+                        obj.version = strtrim(line(1:20));
                     else
                         error('Input file is not observation RINEX!')
                     end
                 end
-                
                 if contains(line,'APPROX POSITION XYZ')
                     obj.approxPos = sscanf(line(1:60),'%f');
                 end
-                
+                if contains(line,'MARKER NAME')
+                    obj.marker.name = strtrim(line(1:60));
+                end
+                if contains(line,'MARKER NUMBER')
+                    obj.marker.number = strtrim(line(1:60));
+                end
+                if contains(line,'MARKER TYPE')
+                    obj.marker.type = strtrim(line(1:60));
+                end
+                if contains(line,'ANT # / TYPE')
+                    obj.antenna.serialnumber = strtrim(line(1:20));
+                    obj.antenna.type = strtrim(line(21:40));
+                end
+                if contains(line,'REC # / TYPE / VERS')
+                    obj.receiver.serialnumber = strtrim(line(1:20));
+                    obj.receiver.type = strtrim(line(21:40));
+                    obj.receiver.version = strtrim(line(41:60));
+                end
+                if contains(line,'ANTENNA: DELTA H/E/N')
+                    match = regexp(line,'[A-Z]/[A-Z]/[A-Z]','match');
+                    obj.antenna.offsetType = match{1};
+                    
+                end
+                if contains(line,'OBSERVER / AGENCY')
+                    obj.observer = strtrim(line(1:20));
+                    obj.agency = strtrim(line(21:40));
+                end
                 if contains(line,'INTERVAL')
                     obj.interval = sscanf(line(1:60),'%f');
                 end
