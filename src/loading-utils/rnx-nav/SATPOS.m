@@ -37,8 +37,7 @@ classdef SATPOS
             
             switch ephType
                 case 'broadcast'
-                    ephListStruct = prepareEph(gnss,ephType,ephFolder,timeFrame);
-                    obj.ephList = ephListStruct.(gnss);
+                    obj.ephList = prepareEph(gnss,ephType,ephFolder,timeFrame);
                     brdc = loadRINEXNavigation(obj.gnss,obj.ephFolder,obj.ephList);
                     brdc = checkEphStatus(brdc);
                     
@@ -57,7 +56,8 @@ classdef SATPOS
                     [obj.ECEF, obj.local] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.recpos,obj.satTimeFlags);
                     
                 case 'precise'
-                    
+                    obj.ephList = prepareEph(gnss,ephType,ephFolder,timeFrame);
+                    %eph = mergeSP3(obj.ephFolder,obj.ephList);
             end
             
         end

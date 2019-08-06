@@ -1,10 +1,10 @@
-function navMessageList = prepareEph(gnss,ephType,folderEph,timeFrame)
+function filelist = prepareEph(gnss,ephType,folderEph,timeFrame)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to download and unzip broadcast/precise ephermeris files for
 % given satellite system and given time frame.
 %
 % Inputs:
-% gnss - sat. specifiers ('GREC' or separate 'G','R' ...)
+% gnss - sat. specifier ('G', 'R', 'E' or 'C')
 % ephType - 'broadcast' or 'precise' for more info see downloadBroadcastMessage.m
 % folderEph - folder where ephemeris files will be stored (does not need to exist)
 % timeFrame - [2 x 3] time frame info from which to download data
@@ -15,22 +15,19 @@ function navMessageList = prepareEph(gnss,ephType,folderEph,timeFrame)
 %              year2, month2, day2]
 %
 % Output:
-% navMessageList - structure with fields of specified GNSS
-%                - each field consists of cell of nav. message filenames
+% filelist - structure with fields of navigation/ephemeris file
 %
 % Note:
 % For unzipping the function uses 7-Zip application, so it is needed to
 % install it previously.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    for i = 1:numel(gnss)
-        s = gnss(i);
-        switch ephType
-            case 'broadcast'
-                navMessageList.(s) = downloadBroadcastData(s,timeFrame,folderEph);
-            case 'precise'
-                
-            otherwise
-                fprintf('Only ephType of "broadcast" or "precise" available!\n');
-        end
-    end
+switch ephType
+    case 'broadcast'
+        filelist = downloadBroadcastData(gnss,timeFrame,folderEph);
+    case 'precise'
+        % Function will download precise ephemeris from CDDIS MGEX
+        % for CODE analysis center
+        filelist = downloadPreciseData(timeFrame,folderEph,'COD');
+    otherwise
+        fprintf('Only ephType "broadcast" or "precise" available!\n');
 end
