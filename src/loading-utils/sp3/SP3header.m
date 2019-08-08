@@ -1,12 +1,13 @@
 classdef SP3header
     properties
         version (1,1) char
+        gnss (1,:) char
         dateStart (1,8) double
         noEpochs (1,1) double
         noSats (1,1) double
         dataUsed (1,:) char
         coordSystem (1,:) char
-        orbitType (1,:) char
+        orbitType (1,:) char {mustBeMember(orbitType,{'   ','FIT','EXT','BCT','HLM'})} = '   '
         agency (1,:) char
         type (1,1) char {mustBeMember(type,{'P'})} = 'P'
         path (1,:) char
@@ -15,6 +16,7 @@ classdef SP3header
         headerSize (1,1) double
         PCV (1,:) char
         sat
+        satAccuracy
     end
     methods
         function obj = SP3header(filename)
@@ -32,6 +34,7 @@ classdef SP3header
             
             lineIndex = 0;
             satRecords = '';
+            satAccExponent = [];
             while 1
                 lineIndex = lineIndex + 1;
                 line = fileBuffer{lineIndex};
@@ -56,22 +59,26 @@ classdef SP3header
                     end
                     satRecords = [satRecords, line(10:end)];
                 end
+                if strcmp(line(1:2),'++')
+                    satAccExponent = [satAccExponent, str2num(line(10:end))];
+                end
                 if contains(line,'PCV:')
                     match = regexp(line,'PCV:.{1,10}','match');
                     x = strsplit(match{1},':');
                     obj.PCV = strtrim(x{2});
                 end
-                
                 if line(1) == '*'
                     obj.headerSize = lineIndex;
                     break
                 end
             end
+            obj.gnss = strtrim(unique(satRecords(1:3:end)));
             [obj.sat, satSum] = SP3header.parseSP3Sats(satRecords);
             if satSum ~= obj.noSats
                 obj.noSats = satSum;
                 warning('Mismatch of satellite number available in file!');
             end
+            obj.satAccuracy = SP3header.parseSP3Accuracy(satRecords,satAccExponent);
         end
     end
     methods (Static)
@@ -86,6 +93,15 @@ classdef SP3header
                 sats(idxNeeded) = satIdstring(idxNeeded);
                 sat.(s) = str2num(sats);
                 satSum = satSum + numel(sat.(s));
+            end
+        end
+        function satAccuracy = parseSP3Accuracy(satIdstring,satAccExponent)
+            satAccExponent(satAccExponent == 0) = NaN;
+            ids = cellstr([satIdstring(1:3:end)', satIdstring(2:3:end)', satIdstring(3:3:end)']);
+        	gnss = strtrim(unique(satIdstring(1:3:end)));
+            for i = 1:numel(gnss)
+                selgnss = cellfun(@(x) strcmp(x(1),gnss(i)),ids);
+                satAccuracy.(gnss(i)) = (2.^satAccExponent(selgnss))*1e-3;
             end
         end
     end
