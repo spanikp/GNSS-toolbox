@@ -21,8 +21,7 @@ classdef OBSRNXheader
     methods
     	function obj = OBSRNXheader(filepath)
             [folderpath,filename,ext] = fileparts(filepath);
-            s = what(folderpath);
-            obj.path = s.path;
+            folderPath
             obj.filename = [filename ext];
             absfilepath = fullfile(obj.path, obj.filename);
             obj.obsTypes = struct();

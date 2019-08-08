@@ -49,7 +49,7 @@ classdef SP3header
                     obj.dateStart(7:8) = x(1:2);
                     obj.interval = x(3);
                 end
-                if strcmp(line(1),'+')
+                if strcmp(line(1:2),'+ ')
                     noSats = str2double(line(4:6));
                     if ~isnan(noSats)
                         obj.noSats = noSats;
