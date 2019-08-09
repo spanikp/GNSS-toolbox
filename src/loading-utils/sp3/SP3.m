@@ -143,33 +143,37 @@ classdef SP3
                 
                 for i = 1:numel(gnssAll)
                     sats = [];
+                    s = gnssAll(i);
                     for j = 1:numel(contentStruct)
-                        sats = [sats, contentStruct(j).sat.(gnssAll(i))];
+                        sats = [sats, contentStruct(j).sat.(s)];
                     end
-                    sat.(gnssAll(i)) = unique(sats);
-                    pos.(gnssAll(i)) = cell(1,numel(sat.(gnssAll(i))));
-                    pos.(gnssAll(i))(:) = {zeros(size(tAll,1),3)};
-                    clockData.(gnssAll(i)) = cell(1,numel(sat.(gnssAll(i))));
-                    clockData.(gnssAll(i))(:) = {zeros(size(tAll,1),1)};
-                    satTimeFlags.(gnssAll(i)) = zeros(size(tAll,1),numel(sat.(gnssAll(i))));
-                    for j = 1:numel(contentStruct)
-                        [~,idxSats,idxMerged] = intersect(contentStruct(j).sat.(gnssAll(i)),sat.(gnssAll(i)));
+                    sat.(s) = unique(sats);
+                    pos.(s) = cell(1,numel(sat.(s)));
+                    pos.(s)(:) = {zeros(size(tAll,1),3)};
+                    clockData.(s) = cell(1,numel(sat.(s)));
+                    clockData.(s)(:) = {zeros(size(tAll,1),1)};
+                    satTimeFlags.(s) = zeros(size(tAll,1),numel(sat.(s)));
+                    for j = 1:numel(sat.(s))
+                        satNoMerged = sat.(s)(j);
                         nStart = 1;
-                        for k = 1:numel(idxSats)
-                            k1 = idxSats(k);
-                            k2 = idxMerged(k);
-                            nEnd = nStart+size(contentStruct(j).pos.((gnssAll(i))){k1},1)-1;
-                            pos.(gnssAll(i)){k2}(nStart:nEnd,:) = contentStruct(j).pos.((gnssAll(i))){k1};
-                            clockData.(gnssAll(i)){k2}(nStart:nEnd,:) = contentStruct(j).clockData.((gnssAll(i))){k1};
-                            satTimeFlags.(gnssAll(i))(nStart:nEnd,k2) = contentStruct(j).satTimeFlags.((gnssAll(i)))(:,k1);
-                            nStart = nEnd+1;
+                        for k = 1:numel(contentStruct)
+                            idxContentStruct = find(contentStruct(k).sat.(s) == satNoMerged);
+                            nEnd = nStart+size(contentStruct(k).t,1)-1;
+                            if ~isempty(idxContentStruct)
+                                pos.(s){j}(nStart:nEnd,:) = contentStruct(k).pos.(s){idxContentStruct};
+                                clockData.(s){j}(nStart:nEnd,:) = contentStruct(k).clockData.(s){idxContentStruct};
+                                satTimeFlags.(s)(nStart:nEnd,j) = contentStruct(k).satTimeFlags.(s)(:,idxContentStruct);
+                            end
+                            if k < numel(contentStruct)
+                                nStart = nEnd+1;
+                            end
                         end
                     end
-                    for j = 1:numel(sat.(gnssAll(i)))
-                        pos.(gnssAll(i)){j} = pos.(gnssAll(i)){j}(tAllidx,:);
-                        clockData.(gnssAll(i)){j} = clockData.(gnssAll(i)){j}(tAllidx,:);
-                        %satTimeFlags.(gnssAll(i)) = satTimeFlags.(gnssAll(i))(tAllidx,:);
+                    for j = 1:numel(sat.(s))
+                        pos.(s){j} = pos.(s){j}(tAllidx,:);
+                        clockData.(s){j} = clockData.(s){j}(tAllidx,:);
                     end
+                    satTimeFlags.(s) = satTimeFlags.(s)(tAllidx,:);
                 end
             end
         end
