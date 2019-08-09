@@ -69,7 +69,7 @@ classdef SATPOS
                         warning('No satellites to process! Program will end.')
                         return
                     end
-                    %[obj.ECEF, obj.local] = SATPOS.getPrecisePosition(obj.satList,obj.gpstime,eph,obj.recpos,obj.satTimeFlags);
+                    [obj.ECEF, obj.local] = SATPOS.getPrecisePosition(obj.satList,obj.gpstime,eph,obj.recpos,obj.satTimeFlags);
             end
         end
     end
@@ -241,7 +241,8 @@ classdef SATPOS
             selSatNotPresent = ~ismember(satList,eph.sat.(satsys));
             if any(selSatNotPresent)
                 notPresentSats = satList(selSatNotPresent);
-                warning('Following sats of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',satsys,strjoin(strsplit(num2str(notPresentSats)),','))
+                warning('Following sats of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',...
+                    satsys,strjoin(strsplit(num2str(notPresentSats)),','))
                 satList = satList(~selSatNotPresent);
                 satTimeFlags = satTimeFlags(:,~selSatNotPresent);
             end
@@ -256,19 +257,34 @@ classdef SATPOS
                 
                 % Selection of only non-zero epochs
                 PRNtimeSel = satTimeFlags(:,i);
-                selEph = brdc.sat == PRN;
-                if sum(selEph) == 0
+                selEph = eph.sat.(satsys) == PRN;
+                if nnz(selEph) == 0
                     fprintf('(skipped - missing ephemeris for satellite)\n');
                     continue;
                 end
-                
-                PRNephAll = brdc.eph{selEph};
+                PRNephAll = eph.pos.(satsys){selEph};
                 ecef = zeros(nnz(PRNtimeSel),3);
                 
                 % Time variables
                 GPSTimeWanted = gpstime(PRNtimeSel,:);
                 mTimeWanted   = gps2matlabtime(GPSTimeWanted);
-                mTimeGiven    = PRNephAll(11,:)';
+                mTimeGiven    = eph.t(:,9);
+                
+                % In case of GLONASS -> change mTimeWanted to UTC.
+                % Values of mTimeGiven are from BRDC message and these are already in UTC timescale.
+                % Also value of GPS week and GPS second of week will be transformed to UTC time.
+                if satsys == 'R'
+                    mTimeWanted   = mTimeWanted - brdc.hdr.leapSeconds/86400;
+                    GLOTimeWanted = GPS2UTCtime(GPSTimeWanted,brdc.hdr.leapSeconds);
+                end
+                
+                % In case of BEIDOU/COMPASS -> change mTimeWanted to UTC at 1.1.2006.
+                % Values of mTimeGiven are from BRDC message and these are already in UTC timescale.
+                % Also value of GPS week and GPS second of week will be transformed to BDT time.
+                if satsys == 'C'
+                    mTimeWanted   = mTimeWanted - 14/86400;
+                    BDSTimeWanted = GPS2UTCtime(GPSTimeWanted,14);
+                end
             end
         end
     end
