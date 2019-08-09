@@ -7,6 +7,7 @@ classdef SP3header
         noSats (1,1) double
         dataUsed (1,:) char
         coordSystem (1,:) char
+        timeSystem (1,:) char
         orbitType (1,:) char {mustBeMember(orbitType,{'   ','FIT','EXT','BCT','HLM'})} = '   '
         agency (1,:) char
         type (1,1) char {mustBeMember(type,{'P'})} = 'P'
@@ -66,6 +67,9 @@ classdef SP3header
                     match = regexp(line,'PCV:.{1,10}','match');
                     x = strsplit(match{1},':');
                     obj.PCV = strtrim(x{2});
+                end
+                if strcmp(line(1:2),'%c') && ~strcmp(line(4:5),'cc')
+                    obj.timeSystem = line(10:12);
                 end
                 if line(1) == '*'
                     obj.headerSize = lineIndex;
