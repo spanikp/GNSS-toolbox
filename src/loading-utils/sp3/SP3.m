@@ -39,7 +39,19 @@ classdef SP3
                 obj.satTimeFlags = temp.satTimeFlags;
             else
                 [obj.pos, obj.t, obj.sat, obj.clockData, obj.satTimeFlags] = SP3.mergeContent(temp);
+                obj.gnss = strjoin(fieldnames(obj.sat),'');
             end
+        end
+        function saveToMAT(obj,outMatFullFileName)
+            if nargin == 1
+                outMatFileName = 'preciseEph.mat';
+                outMatFullFileName = fullfile(obj.fileList.path{1}, outMatFileName);
+            end
+            outMatFileName = strsplit(outMatFullFileName,{'/','\'});
+            outMatFileName = outMatFileName{end};
+            fprintf('Saving loaded EPH to to "%s" ',outMatFileName);
+            save(outMatFullFileName,'obj');
+            fprintf(' [done]\n')
         end
     end
     methods (Static)
@@ -134,9 +146,8 @@ classdef SP3
                     idxMoreTimes = 1:numel(tAll(:,9));
                     idxMoreTimes(tAllidx) = [];
                     for i = 1:numel(idxMoreTimes)
-                        d = strsplit(num2str(datevec(tAll(idxMoreTimes(i)))));
-                        d1 = strjoin(d(1:3),'/'); d2 = strjoin(d(4:6),':');
-                        warning('Time conflict for t: %s, position from first input file will be used!',[d1 ' ' d2]);
+                        d = sprintf('%04d/%02d/%02d %02d:%02d:%02d',tAll(idxMoreTimes(i),1:6));
+                        warning('SP3 merging: time conflict for t: %s, position from first input file will be used!',d);
                     end
                 end
                 t = tAll(tAllidx,:);
@@ -176,6 +187,25 @@ classdef SP3
                     satTimeFlags.(s) = satTimeFlags.(s)(tAllidx,:);
                 end
             end
+        end
+        function obj = loadFromMAT(filepath)
+            xobj = load(filepath);
+            propAre1 = fieldnames(xobj.obj);
+            propAre2 = fieldnames(xobj.obj.header);
+            propAre3 = fieldnames(xobj.obj.fileList);
+            propShould1 = properties('SP3');
+            propShould2 = properties('SP3header');
+            propShould3 = properties('fileList');
+            
+            if isempty(setdiff(propAre1,propShould1)) && isempty(setdiff(propAre2,propShould2)) && isempty(setdiff(propAre3,propShould3))
+                obj = xobj.obj;
+                fprintf('SP3 file loaded from file "%s".\n',filepath)
+            else
+                error('Input MAT file has not complete SP3 format structure!');
+            end
+
+            % Update filename and path to input MAT file
+            obj.fileList = fileList({filepath});
         end
 	end
 end

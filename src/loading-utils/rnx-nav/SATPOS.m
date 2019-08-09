@@ -18,7 +18,7 @@ classdef SATPOS
             obj.gnss = gnss;
             obj.satList = satList;
             obj.ephType = ephType;
-            obj.ephFolder = ephFolder;
+            obj.ephFolder = fullpath(ephFolder);
             obj.gpstime = gpstime;
             if nargin < 6
                 obj.recpos = [0 0 0];
@@ -35,9 +35,9 @@ classdef SATPOS
             timeFrame = gps2greg(gpstime([1,end],:));
             timeFrame = timeFrame(:,1:3);
             
+            obj.ephList = prepareEph(gnss,ephType,ephFolder,timeFrame);
             switch ephType
                 case 'broadcast'
-                    obj.ephList = prepareEph(gnss,ephType,ephFolder,timeFrame);
                     brdc = loadRINEXNavigation(obj.gnss,obj.ephFolder,obj.ephList);
                     brdc = checkEphStatus(brdc);
                     
@@ -56,10 +56,21 @@ classdef SATPOS
                     [obj.ECEF, obj.local] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.recpos,obj.satTimeFlags);
                     
                 case 'precise'
-                    obj.ephList = prepareEph(gnss,ephType,ephFolder,timeFrame);
-                    %eph = mergeSP3(obj.ephFolder,obj.ephList);
+                    fileListToLoad = cellfun(@(x) fullfile(obj.ephFolder,x),obj.ephList,'UniformOutput',false);
+                    eph = SP3(fileListToLoad);
+                    selSatNotPresent = ~ismember(obj.satList,eph.sat.(obj.gnss));
+                    if any(selSatNotPresent)
+                        notPresentSats = obj.satList(selSatNotPresent);
+                        warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
+                        obj.satList = obj.satList(~selSatNotPresent);
+                        obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
+                    end
+                    if isempty(obj.satList)
+                        warning('No satellites to process! Program will end.')
+                        return
+                    end
+                    %[obj.ECEF, obj.local] = SATPOS.getPrecisePosition(obj.satList,obj.gpstime,eph,obj.recpos,obj.satTimeFlags);
             end
-            
         end
     end
     
@@ -199,6 +210,66 @@ classdef SATPOS
 %             obsrnx.obs.(satsys)(selNotComputedPositions) = [];
 %             obsrnx.obsqi.(satsys)(selNotComputedPositions) = [];
 
+        end
+        function [ECEF, local] = getPrecisePosition(satList,gpstime,eph,recpos,satTimeFlags)
+            validateattributes(satList,{'double'},{'nonnegative'},1)
+            validateattributes(gpstime,{'double'},{'size',[NaN,2]},2)
+            validateattributes(eph,{'SP3'},{'size',[1,1]},3)
+            if nargin < 4
+                recpos = [0,0,0];
+                satTimeFlags = true(size(gpstime,1),numel(satList));
+            elseif nargin < 5
+                satTimeFlags = true(size(gpstime,1),numel(satList));
+            end
+            validateattributes(recpos,{'double'},{'size',[1,3]},4)
+            validateattributes(satTimeFlags,{'logical'},{'size',[size(gpstime,1),numel(satList)]},5)
+                
+            satsys =  eph.gnss;
+            assert(numel(satsys)==1,'Method "SATPOS.getPrecisePosition" is limited to run with single satellite system!');
+            fprintf('\n############################################################\n')
+            fprintf('##### Load and compute satellite position for %s system #####\n',satsys)
+            fprintf('############################################################\n')
+
+            % Allocate satellite position (satpos) cells
+            ECEF = cell(1,numel(satList));
+            local = cell(1,numel(satList));
+            ECEF(:) = {zeros(size(gpstime,1),3)};
+            local(:) = {zeros(size(gpstime,1),3)};
+            
+            % Looping throught all satellites in observation file
+            fprintf('>>> Computing satellite positions >>>\n')
+            selSatNotPresent = ~ismember(satList,eph.sat.(satsys));
+            if any(selSatNotPresent)
+                notPresentSats = satList(selSatNotPresent);
+                warning('Following sats of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',satsys,strjoin(strsplit(num2str(notPresentSats)),','))
+                satList = satList(~selSatNotPresent);
+                satTimeFlags = satTimeFlags(:,~selSatNotPresent);
+            end
+            if isempty(satList)
+                warning('No satellites to process! Program will end.')
+                return 
+            end
+            nSats = length(satList);
+            for i = 1:nSats
+                PRN = satList(i);
+                fprintf(' -> computing satellite %s%02d ',satsys,PRN);
+                
+                % Selection of only non-zero epochs
+                PRNtimeSel = satTimeFlags(:,i);
+                selEph = brdc.sat == PRN;
+                if sum(selEph) == 0
+                    fprintf('(skipped - missing ephemeris for satellite)\n');
+                    continue;
+                end
+                
+                PRNephAll = brdc.eph{selEph};
+                ecef = zeros(nnz(PRNtimeSel),3);
+                
+                % Time variables
+                GPSTimeWanted = gpstime(PRNtimeSel,:);
+                mTimeWanted   = gps2matlabtime(GPSTimeWanted);
+                mTimeGiven    = PRNephAll(11,:)';
+            end
         end
     end
 end
