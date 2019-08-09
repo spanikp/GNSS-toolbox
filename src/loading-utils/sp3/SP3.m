@@ -31,11 +31,16 @@ classdef SP3
                    warning('Inconsistency between HEADER and BODY satellite list for "%s" file!',obj.header(i).filename) 
                 end
             end
-            %[obj.pos, obj.t, obj.sat, obj.clockData, obj.satTimeFlags] = SP3.mergeContent(temp);
+            if numel(obj.fileList.fileNames) == 1
+                obj.pos = temp.pos;
+                obj.t = temp.t;
+                obj.sat = temp.sat;
+                obj.clockData = temp.clockData;
+                obj.satTimeFlags = temp.satTimeFlags;
+            else
+                [obj.pos, obj.t, obj.sat, obj.clockData, obj.satTimeFlags] = SP3.mergeContent(temp);
+            end
         end
-%         function obj = resample(obj,everyNepoch)
-% 
-%         end
     end
     methods (Static)
         function [pos, t, sat, clockData, satTimeFlags] = loadContent(filename,downsampleFactor)
@@ -115,9 +120,56 @@ classdef SP3
             if ~isempty(diffFields)
                 error('Input content structure is missing fields: %s',strjoin(diffFields,','));
             else
-                gnss = '';
+                gnssAll = '';
                 for i = 1:numel(contentStruct)
-                    
+                    gnssAll = [gnssAll, strjoin(fieldnames(contentStruct(i).sat)','')];
+                end
+                gnssAll = unique(gnssAll);
+                tAll = [];
+                for i = 1:numel(contentStruct)
+                    tAll = [tAll; contentStruct(i).t];
+                end
+                [tAllunique, tAllidx] = unique(tAll(:,9));
+                if numel(tAllunique) ~= numel(tAll(:,9))
+                    idxMoreTimes = 1:numel(tAll(:,9));
+                    idxMoreTimes(tAllidx) = [];
+                    for i = 1:numel(idxMoreTimes)
+                        d = strsplit(num2str(datevec(tAll(idxMoreTimes(i)))));
+                        d1 = strjoin(d(1:3),'/'); d2 = strjoin(d(4:6),':');
+                        warning('Time conflict for t: %s, position from first input file will be used!',[d1 ' ' d2]);
+                    end
+                end
+                t = tAll(tAllidx,:);
+                
+                for i = 1:numel(gnssAll)
+                    sats = [];
+                    for j = 1:numel(contentStruct)
+                        sats = [sats, contentStruct(j).sat.(gnssAll(i))];
+                    end
+                    sat.(gnssAll(i)) = unique(sats);
+                    pos.(gnssAll(i)) = cell(1,numel(sat.(gnssAll(i))));
+                    pos.(gnssAll(i))(:) = {zeros(size(tAll,1),3)};
+                    clockData.(gnssAll(i)) = cell(1,numel(sat.(gnssAll(i))));
+                    clockData.(gnssAll(i))(:) = {zeros(size(tAll,1),1)};
+                    satTimeFlags.(gnssAll(i)) = zeros(size(tAll,1),numel(sat.(gnssAll(i))));
+                    for j = 1:numel(contentStruct)
+                        [~,idxSats,idxMerged] = intersect(contentStruct(j).sat.(gnssAll(i)),sat.(gnssAll(i)));
+                        nStart = 1;
+                        for k = 1:numel(idxSats)
+                            k1 = idxSats(k);
+                            k2 = idxMerged(k);
+                            nEnd = nStart+size(contentStruct(j).pos.((gnssAll(i))){k1},1)-1;
+                            pos.(gnssAll(i)){k2}(nStart:nEnd,:) = contentStruct(j).pos.((gnssAll(i))){k1};
+                            clockData.(gnssAll(i)){k2}(nStart:nEnd,:) = contentStruct(j).clockData.((gnssAll(i))){k1};
+                            satTimeFlags.(gnssAll(i))(nStart:nEnd,k2) = contentStruct(j).satTimeFlags.((gnssAll(i)))(:,k1);
+                            nStart = nEnd+1;
+                        end
+                    end
+                    for j = 1:numel(sat.(gnssAll(i)))
+                        pos.(gnssAll(i)){j} = pos.(gnssAll(i)){j}(tAllidx,:);
+                        clockData.(gnssAll(i)){j} = clockData.(gnssAll(i)){j}(tAllidx,:);
+                        %satTimeFlags.(gnssAll(i)) = satTimeFlags.(gnssAll(i))(tAllidx,:);
+                    end
                 end
             end
         end
