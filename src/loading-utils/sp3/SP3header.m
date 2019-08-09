@@ -26,7 +26,7 @@ classdef SP3header
             obj.filename = [f ext];
             absFilePath = fullfile(obj.path,obj.filename);
             
-            fprintf('Reading header of SP3 file: %s\n',absFilePath);
+            fprintf('Reading header of SP3 file: %s ',obj.filename);
             finp = fopen(absFilePath,'r');
             fileBuffer = textscan(finp, '%s', 'Delimiter', '\n', 'whitespace', '');
             fileBuffer = fileBuffer{1};
@@ -79,6 +79,7 @@ classdef SP3header
                 warning('Mismatch of satellite number available in file!');
             end
             obj.satAccuracy = SP3header.parseSP3Accuracy(satRecords,satAccExponent);
+            fprintf('[done]\n')
         end
     end
     methods (Static)
