@@ -57,7 +57,7 @@ classdef SATPOS
                     
                 case 'precise'
                     fileListToLoad = cellfun(@(x) fullfile(obj.ephFolder,x),obj.ephList,'UniformOutput',false);
-                    eph = SP3(fileListToLoad);
+                    eph = SP3(fileListToLoad,900,gnss);
                     selSatNotPresent = ~ismember(obj.satList,eph.sat.(obj.gnss));
                     if any(selSatNotPresent)
                         notPresentSats = obj.satList(selSatNotPresent);

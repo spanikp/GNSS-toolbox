@@ -12,10 +12,15 @@ classdef SP3
     end
     
     methods
-        function obj = SP3(cellFilelist,interval)
-            if nargin == 2
+        function obj = SP3(cellFilelist,interval,filtergnss)
+            if nargin > 1
                 assert(rem(interval,1)==0,'Input resampling interval has to be integer!');
-                obj.interval = interval;
+                if nargin == 2
+                    obj.interval = interval;
+                    filtergnss = 'GRECJIL';
+                elseif  nargin == 3
+                    obj.interval = interval;
+                end
             end
             obj.fileList = fileList(cellFilelist,{'SP3','sp3','eph','EPH'});
             temp = struct('pos',[],'t',[],'sat',[],'clockData',[],'satTimeFlags',[]);
@@ -26,9 +31,13 @@ classdef SP3
                     error('Input file "%s" cannot be resampled: mismatch between SP3 interval (%ds) and user interval (%ds)!',...
                         obj.header(i).filename,obj.header(i).interval,obj.interval); 
                 end
-                [temp(i).pos,temp(i).t,temp(i).sat,temp(i).clockData,temp(i).satTimeFlags] = SP3.loadContent(f,obj.interval/obj.header(i).interval);
-                if ~isequal(temp(i).sat,obj.header(i).sat)
-                   warning('Inconsistency between HEADER and BODY satellite list for "%s" file!',obj.header(i).filename) 
+                [temp(i).pos,temp(i).t,temp(i).sat,temp(i).clockData,temp(i).satTimeFlags] = SP3.loadContent(f,obj.interval/obj.header(i).interval,filtergnss);
+                g = intersect(strjoin(fieldnames(obj.header(i).sat),''),filtergnss);
+                for j = 1:numel(g)
+                    s = g(j);
+                    if ~isequal(temp(i).sat.(s),obj.header(i).sat.(s))
+                        warning('Inconsistency between HEADER and BODY satellite list for %s system in "%s" file!',s,obj.header(i).filename) 
+                    end
                 end
             end
             if numel(obj.fileList.fileNames) == 1
@@ -55,13 +64,19 @@ classdef SP3
         end
     end
     methods (Static)
-        function [pos, t, sat, clockData, satTimeFlags] = loadContent(filename,downsampleFactor)
+        function [pos, t, sat, clockData, satTimeFlags] = loadContent(filename,downsampleFactor,filtergnss)
             if nargin == 1
                 downsampleFactor = 1; % Load each epochs by default
+                filtergnss = 'GRECJIL'; % Default no filtering at all
+            end
+            if nargin == 2
+                filtergnss = 'GRECJIL';
             end
             validateattributes(filename,{'char'},{'size',[1,NaN]},1);
             validateattributes(downsampleFactor,{'double'},{'size',[1,1],'>=',1},2);
+            validateattributes(filtergnss,{'char'},{'size',[1,NaN]},3);
             assert(rem(downsampleFactor,1)==0,'Input value "downsampleFactor" has to be integer!');
+            assert(nnz(ismember(filtergnss,'GRECJIL'))==numel(filtergnss),'Input value "filtergnss" must me one or more chars of "GRECJIL"!')
 
             [~,f,fe] = fileparts(filename);
             fprintf('Loading content of SP3 file: %s ',[f,fe]);
@@ -81,6 +96,7 @@ classdef SP3
             % Allocate structure fields for different systems
             satsys = cellfun(@(x) x(2),raw(contentStartIdx:end-1))';
             gnss = strtrim(unique(satsys));
+            gnss = intersect(gnss,filtergnss);
             for i = 1:numel(gnss)
                 selgnss = cellfun(@(x) strcmp(x(2),gnss(i)),raw);
                 sat.(gnss(i)) = unique(cellfun(@(x) str2double(x(3:4)),raw(selgnss))');
@@ -105,17 +121,16 @@ classdef SP3
                         line = raw{idxLine};
                         idxLine = idxLine+1;
                         if strcmp(line(1),'P')
-                            prn = sscanf(line(3:4),'%f');
-                            xyzc = sscanf(line(5:60),'%f')';
-                            idxSat = find(sat.(line(2)) == prn);
-                            pos.(line(2)){idxSat}(idxEpoch,:) = xyzc(1:3)*1e3;
-                            if round(xyzc(4)) ~= 1e6
-                                clockData.(line(2)){idxSat}(idxEpoch,:) = xyzc(4);
+                            if ismember(line(2),gnss)
+                                prn = sscanf(line(3:4),'%f');
+                                xyzc = sscanf(line(5:60),'%f')';
+                                idxSat = find(sat.(line(2)) == prn);
+                                pos.(line(2)){idxSat}(idxEpoch,:) = xyzc(1:3)*1e3;
+                                if round(xyzc(4)) ~= 1e6
+                                    clockData.(line(2)){idxSat}(idxEpoch,:) = xyzc(4);
+                                end
+                                satTimeFlags.(line(2))(idxEpoch,idxSat) = true;
                             end
-                            satTimeFlags.(line(2))(idxEpoch,idxSat) = true;
-%                         elseif strcmp(line(1),'*')
-%                             skipEpoch = downsampleFactor - 1;
-%                             break
                         else
                             skipEpoch = downsampleFactor - 1;
                             break
@@ -199,7 +214,7 @@ classdef SP3
             
             if isempty(setdiff(propAre1,propShould1)) && isempty(setdiff(propAre2,propShould2)) && isempty(setdiff(propAre3,propShould3))
                 obj = xobj.obj;
-                fprintf('SP3 file loaded from file "%s".\n',filepath)
+                fprintf('SP3 file loaded from file "%s"\n',filepath)
             else
                 error('Input MAT file has not complete SP3 format structure!');
             end
