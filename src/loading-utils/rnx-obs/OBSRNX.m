@@ -24,6 +24,7 @@ classdef OBSRNX
             end
             hdr = OBSRNXheader(filepath);
             validateattributes(hdr,{'OBSRNXheader'},{})
+            OBSRNX.checkParamInput(param);
             if ~strcmp(hdr.marker.type,'GEODETIC')
                 warning('Input RINEX marker type differs from "GEODETIC" or does not contain "MARKER TYPE" record. RINEX may contain kinematic records for which this reader was not programmed and can fail!');
                 answer = input('Do you wish to continue? [Y/N] > ','s');
@@ -230,6 +231,17 @@ classdef OBSRNX
         end
         function param = getDefaults()
 			param.filtergnss = 'GREC';
+        end
+        function checkParamInput(param)
+            validateattributes(param,{'struct'},{'size',[1,1]},1);
+            shouldBe = {'filtergnss'};
+            currentlyAre = fieldnames(param);
+            diffFieldnames = setdiff(shouldBe,currentlyAre);
+            if 
+                error('')
+            else
+                
+            end
         end
     end
 end
