@@ -62,6 +62,21 @@ classdef SP3
             save(outMatFullFileName,'obj');
             fprintf(' [done]\n')
         end
+        function [x,y,z] = interpolatePosition(obj,satsys,prn,mtime)
+            prnIdx = find(obj.sat.(satsys) == prn);
+            if ~isempty(prnIdx)
+                for i = 1:numel(mtime)
+                    midIdx = find(obj.t(:,9) - mtime(i) >= 0,1,'first');
+                    idxStart = midIdx - 5;
+                    idxEnd = midIdx + 4;
+                    x = lagrange(obj.t(idxStart:idxEnd,9),obj.pos.(satsys){prnIdx}(idxStart:idxEnd,1),mtime(i));
+                    y = lagrange(obj.t(idxStart:idxEnd,9),obj.pos.(satsys){prnIdx}(idxStart:idxEnd,2),mtime(i)); 
+                    z = lagrange(obj.t(idxStart:idxEnd,9),obj.pos.(satsys){prnIdx}(idxStart:idxEnd,3),mtime(i)); 
+                end
+            else
+                error('Satellite %s not available in ephemeris!',prn);
+            end
+        end
     end
     methods (Static)
         function [pos, t, sat, clockData, satTimeFlags] = loadContent(filename,downsampleFactor,filtergnss)

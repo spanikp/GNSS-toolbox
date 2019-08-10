@@ -274,8 +274,8 @@ classdef SATPOS
                 % Values of mTimeGiven are from BRDC message and these are already in UTC timescale.
                 % Also value of GPS week and GPS second of week will be transformed to UTC time.
                 if satsys == 'R'
-                    mTimeWanted   = mTimeWanted - brdc.hdr.leapSeconds/86400;
-                    GLOTimeWanted = GPS2UTCtime(GPSTimeWanted,brdc.hdr.leapSeconds);
+                    mTimeWanted   = mTimeWanted - getLeapSeconds(GPSTimeWanted)/86400;
+                    GLOTimeWanted = GPS2UTCtime(GPSTimeWanted,getLeapSeconds(GPSTimeWanted));
                 end
                 
                 % In case of BEIDOU/COMPASS -> change mTimeWanted to UTC at 1.1.2006.
@@ -284,6 +284,26 @@ classdef SATPOS
                 if satsys == 'C'
                     mTimeWanted   = mTimeWanted - 14/86400;
                     BDSTimeWanted = GPS2UTCtime(GPSTimeWanted,14);
+                end
+                
+                % Find previous epochs and throw error if there are NaN values
+                x = NaN(numel(mTimeWanted),1);
+                y = NaN(numel(mTimeWanted),1);
+                z = NaN(numel(mTimeWanted),1);
+                for j = 1:numel(mTimeWanted)
+                    [x(j), y(j), z(j)] = eph.interpolatePosition(satsys,PRN,mTimeWanted);
+                end
+                ECEF{i}(PRNtimeSel,:) = [x, y, z];
+                
+                % Compute azimuth, alevation and slant range
+                if ~isequal(recpos,[0 0 0])
+                    ell = referenceEllipsoid('wgs84');
+                    [lat0,lon0,h0] = ecef2geodetic(recpos(1),recpos(2),recpos(3),ell,'degrees');
+                    [azi,elev,slantRange] = ecef2aer(x,y,z,lat0,lon0,h0,ell);
+                    local{i}(PRNtimeSel,:) = [elev,azi,slantRange];
+                end
+                if sum(sum([ECEF{i}, local{i}])) ~= 0
+                    fprintf('(done)\n');
                 end
             end
         end
