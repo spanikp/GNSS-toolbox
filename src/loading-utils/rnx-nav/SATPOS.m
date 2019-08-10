@@ -90,7 +90,7 @@ classdef SATPOS
                 
             satsys =  brdc.gnss;
             fprintf('\n############################################################\n')
-            fprintf('##### Load and compute satellite position for %s system #####\n',satsys)
+            fprintf('### Computing satellite position for %s system (BROADCAST) ##\n',satsys)
             fprintf('############################################################\n')
 
             % Allocate satellite position (satpos) cells
@@ -227,7 +227,7 @@ classdef SATPOS
             satsys =  eph.gnss;
             assert(numel(satsys)==1,'Method "SATPOS.getPrecisePosition" is limited to run with single satellite system!');
             fprintf('\n############################################################\n')
-            fprintf('##### Load and compute satellite position for %s system #####\n',satsys)
+            fprintf('#### Computing satellite position for %s system (PRECISE) ###\n',satsys)
             fprintf('############################################################\n')
 
             % Allocate satellite position (satpos) cells
@@ -262,38 +262,12 @@ classdef SATPOS
                     fprintf('(skipped - missing ephemeris for satellite)\n');
                     continue;
                 end
-                PRNephAll = eph.pos.(satsys){selEph};
-                ecef = zeros(nnz(PRNtimeSel),3);
                 
-                % Time variables
+                % Make Lagrange 10-th order interpolation
                 GPSTimeWanted = gpstime(PRNtimeSel,:);
                 mTimeWanted   = gps2matlabtime(GPSTimeWanted);
-                mTimeGiven    = eph.t(:,9);
-                
-                % In case of GLONASS -> change mTimeWanted to UTC.
-                % Values of mTimeGiven are from BRDC message and these are already in UTC timescale.
-                % Also value of GPS week and GPS second of week will be transformed to UTC time.
-                if satsys == 'R'
-                    mTimeWanted   = mTimeWanted - getLeapSeconds(GPSTimeWanted)/86400;
-                    GLOTimeWanted = GPS2UTCtime(GPSTimeWanted,getLeapSeconds(GPSTimeWanted));
-                end
-                
-                % In case of BEIDOU/COMPASS -> change mTimeWanted to UTC at 1.1.2006.
-                % Values of mTimeGiven are from BRDC message and these are already in UTC timescale.
-                % Also value of GPS week and GPS second of week will be transformed to BDT time.
-                if satsys == 'C'
-                    mTimeWanted   = mTimeWanted - 14/86400;
-                    BDSTimeWanted = GPS2UTCtime(GPSTimeWanted,14);
-                end
-                
-                % Find previous epochs and throw error if there are NaN values
-                x = NaN(numel(mTimeWanted),1);
-                y = NaN(numel(mTimeWanted),1);
-                z = NaN(numel(mTimeWanted),1);
-                for j = 1:numel(mTimeWanted)
-                    [x(j), y(j), z(j)] = eph.interpolatePosition(satsys,PRN,mTimeWanted);
-                end
-                ECEF{i}(PRNtimeSel,:) = [x, y, z];
+                [x,y,z] = eph.interpolatePosition(satsys,PRN,mTimeWanted);
+                ECEF{i}(PRNtimeSel,:) = [x,y,z];
                 
                 % Compute azimuth, alevation and slant range
                 if ~isequal(recpos,[0 0 0])
