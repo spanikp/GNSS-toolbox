@@ -58,7 +58,7 @@ classdef SP3header
                     if ~isnan(noSats)
                         obj.noSats = noSats;
                     end
-                    satRecords = [satRecords, line(10:end)];
+                    satRecords = [satRecords, strtrim(line(10:end))];
                 end
                 if strcmp(line(1:2),'++')
                     satAccExponent = [satAccExponent, str2num(line(10:end))];
@@ -76,7 +76,7 @@ classdef SP3header
                     break
                 end
             end
-            obj.gnss = strtrim(unique(satRecords(1:3:end)));
+            obj.gnss = strrep(unique(satRecords(1:3:end)),' ','');
             [obj.sat, satSum] = SP3header.parseSP3Sats(satRecords);
             if satSum ~= obj.noSats
                 obj.noSats = satSum;
