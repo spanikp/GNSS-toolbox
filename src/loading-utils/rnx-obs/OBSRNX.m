@@ -176,23 +176,27 @@ classdef OBSRNX
                 end
             end
         end
-        function obj = computeSatPosition(obj,ephType)
-            validateattributes(ephType,{'char'},{})
+        function obj = computeSatPosition(obj,ephType,ephFolder)
+            validateattributes(ephType,{'char'},{},2)
             assert(ismember(ephType,{'broadcast','precise'}),'Input "ephType" can be set to "broadcast" or "precise" only!')
-            
-            switch ephType
-                case 'broadcast'
-                    f = 'brdc';
-                case 'precise'
-                    f = 'eph';
+            if nargin == 2
+            	switch ephType
+                    case 'broadcast'
+                        f = 'brdc';
+                    case 'precise'
+                        f = 'eph';
+            	end
+                ephFolder = fullfile(obj.path,f);
             end
-            navFolder = fullfile(obj.path,f);
+            validateattributes(ephFolder,{'char'},{},3)
+
+            % Looping through GNSS in OBSRNX and compute satellite positions
             for i = 1:numel(obj.gnss)
                 s = obj.gnss(i);
                 recpos = obj.header.approxPos;
                 satList = obj.sat.(s);
                 satFlags = obj.satTimeFlags.(s);
-                obj.satpos(i) = SATPOS(s,satList,ephType,navFolder,obj.t(:,7:8),recpos,satFlags);
+                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),recpos,satFlags);
             end
         end
         function saveToMAT(obj,outMatFullFileName)
