@@ -1,4 +1,4 @@
-function filelist = prepareEph(gnss,ephType,folderEph,timeFrame)
+function fileList = prepareEph(gnss,ephType,folderEph,timeFrame)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to download and unzip broadcast/precise ephermeris files for
 % given satellite system and given time frame.
@@ -15,7 +15,7 @@ function filelist = prepareEph(gnss,ephType,folderEph,timeFrame)
 %              year2, month2, day2]
 %
 % Output:
-% filelist - structure with fields of navigation/ephemeris file
+% fileList - structure with fields of navigation/ephemeris file
 %
 % Note:
 % For unzipping the function uses 7-Zip application, so it is needed to
@@ -23,11 +23,16 @@ function filelist = prepareEph(gnss,ephType,folderEph,timeFrame)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 switch ephType
     case 'broadcast'
-        filelist = downloadBroadcastData(gnss,timeFrame,folderEph);
+        fileList = downloadBroadcastData(gnss,timeFrame,folderEph);
     case 'precise'
-        % Function will download precise ephemeris from CDDIS MGEX
-        % for CODE analysis center
-        filelist = downloadPreciseData(timeFrame,folderEph,'COD');
+        % Check if for all required days there are files in folderEph, if not
+        % then precise data for CODE center will be downloaded
+        [fileList,filesRequired] = checkEphFolderForFiles(timeFrame,folderEph);
+        if numel(fileList) < filesRequired
+            % Function will download precise ephemeris from CDDIS MGEX for CODE analysis center
+            fileList = downloadPreciseData(timeFrame,folderEph,'COD');
+        end
     otherwise
+        fileList = {''};
         fprintf('Only ephType "broadcast" or "precise" available!\n');
 end

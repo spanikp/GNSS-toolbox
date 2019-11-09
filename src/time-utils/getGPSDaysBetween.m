@@ -28,7 +28,7 @@ timeFrame = datevec(t);
 timeFrame = timeFrame(:,1:6);
 
 % Check if day2 is after day1
-if datenum(timeFrame(2,:)) <= datenum(timeFrame(2,:))
+if datenum(timeFrame(2,:)) <= datenum(timeFrame(1,:))
     warning('Second day is before first day, output will be empty arrays!')
 end
 
