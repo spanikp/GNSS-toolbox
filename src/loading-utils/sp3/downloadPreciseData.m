@@ -32,15 +32,7 @@ currentFolder = pwd();
 cd(folderEph)
 
 % Extent input timeFrame by one day
-t = datetime(timeFrame) + [-day(1); day(1)];
-timeFrame = datevec(t);
-timeFrame = timeFrame(:,1:6);
-
-% Time conversions
-mTime = datenum(timeFrame(1,:)):1:datenum(timeFrame(2,:));
-dt = datetime(mTime,'ConvertFrom','datenum')';
-[y,m,d] = ymd(dt); [hh,mm,ss] = hms(dt);
-[gpsWeek, ~, doy, ~] = greg2gps([y,m,d,hh,mm,ss]);
+[gpsWeek,doy,~,dt] = getGPSDaysBetween(timeFrame,1);
 
 % Check if last day is after first day
 if isempty(doy)
@@ -50,16 +42,16 @@ if isempty(doy)
 end
 
 % Check upper limit of timeFrame
-if mTime(end) > now()
+if datenum([timeFrame(2,1:2), timeFrame(2,3)+1]) > floor(now())
     fprintf('Wrong input date: Last moment is in the future !\n')
     neededFiles = {''};
     return
 end
 
 % Cell of needed files
-neededFiles = cell(1,numel(doy));
+neededFiles = cell(numel(doy),1);
 for i = 1:numel(doy)
-    neededFiles{i} = [center '0MGXFIN_' sprintf('%d%03d',year(dt(i)),doy(i)) '0000_01D_05M_ORB.SP3'];
+    neededFiles{i,1} = [center '0MGXFIN_' sprintf('%d%03d',year(dt(i)),doy(i)) '0000_01D_05M_ORB.SP3'];
 end
 dirContent = dir();
 dirContent = struct2cell(dirContent);
