@@ -200,13 +200,27 @@ classdef OBSRNX
             end
         end
         function saveToMAT(obj,outMatFullFileName)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Store OBSRNX object to MAT file
+            % outMatFullFileName
+            %   - full path to output MAT file
+            %	- can be with or withou extension
+            %	- if other extension than *.mat given, warning is called 
+            %     and etension is forced to be *.mat
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             if nargin == 1
                 [~,filenameOut,~] = fileparts(fullfile(obj.path, obj.filename));
                 outMatFileName = [filenameOut '.mat'];
                 outMatFullFileName = fullfile(obj.path, outMatFileName);
             end
-            outMatFileName = strsplit(outMatFullFileName,{'/','\'});
-            outMatFileName = outMatFileName{end};
+            [outPath,outFileName,outExtension] = fileparts(outMatFullFileName);
+            if strcmp(outExtension,'.mat')
+                outMatFileName = [outFileName, outExtension];
+            else
+                warning('Output file extension changed from *%s to *.mat!',outExtension);
+                outMatFileName = [outFileName, '.mat'];
+                outMatFullFileName = fullfile(outPath, outMatFileName);
+            end
             fprintf('Saving RINEX "%s" to "%s" ...',obj.filename,outMatFileName);
             save(outMatFullFileName,'obj');
             fprintf(' [done]\n')
