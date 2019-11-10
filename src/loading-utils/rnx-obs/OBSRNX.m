@@ -9,6 +9,11 @@ classdef OBSRNX
                                          'NewStationOccupation',[],'HeaderInfo',[],...
                                          'ExternalEvent',[],'CycleSlipRecord',[]);
         recClockOffset (:,1) double
+        
+        % recpos - receiver position
+        % Any update of this property will trigger recalculation of
+        % satellites positions stored in satpos(i).local
+        recpos (1,3) double 
         obs
         obsqi
         satTimeFlags
@@ -33,6 +38,7 @@ classdef OBSRNX
                 end
             end
             obj.header = hdr;
+            obj.recpos = hdr.approxPos;
             obj.path = obj.header.path;
             obj.filename = obj.header.filename;
             obj = obj.loadRNXobservation(param);
@@ -193,40 +199,26 @@ classdef OBSRNX
             % Looping through GNSS in OBSRNX and compute satellite positions
             for i = 1:numel(obj.gnss)
                 s = obj.gnss(i);
-                recpos = obj.header.approxPos;
+                localRefPoint = obj.header.approxPos;
                 satList = obj.sat.(s);
                 satFlags = obj.satTimeFlags.(s);
-                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),recpos,satFlags);
+                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags);
             end
         end
-        function obj = recalcSatPosition(obj,recposNew)
+        function obj = updateRecposWithIncrement(obj,increment,incType)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Function to recalculate local coordinates (azi,elev,slant
-            % range) for given receiver position. Function will upload
-            % field obj.satpos.recpos and obj.satpos.local values, while
-            % obj.header.approxPos will not be changed.
-            %
-            % Input:
-            % recposNew - (3,1) array of receiver ECEF coordinates
+            % Method will update recpos property with incrementing value
+            % defined by "increment" variable. Increment can be given in
+            % global ECEF or local ENU frame. Specification of the
+            % increment frame is given in "incType".
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            validateattributes(recposNew,{'numeric'},{'size',[1,3]})
-            for i = 1:numel(obj.gnss)
-                obj.satpos(i).recpos = recposNew;
-                if isequal(recposNew,[0 0 0])
-                    obj.satpos(i).local(:) = {zeros(size(obj.satpos(i).gpstime,1),3)};
-                else
-                    ell = referenceEllipsoid('wgs84');
-                    [lat0,lon0,h0] = ecef2geodetic(recposNew(1),recposNew(2),recposNew(3),ell,'degrees');
-                    for j = 1:numel(obj.satpos(i).satList)
-                        timeSel = sum(obj.satpos(i).ECEF{j},2) ~= 0;
-                        [azi,elev,slantRange] = ecef2aer(obj.satpos(i).ECEF{j}(timeSel,1),...
-                            obj.satpos(i).ECEF{j}(timeSel,2),...
-                            obj.satpos(i).ECEF{j}(timeSel,3),...
-                            lat0,lon0,h0,ell);
-                        obj.satpos(i).local{j}(timeSel,:) = [azi,elev,slantRange];
-                    end
-                end
-            end
+            validateattributes(increment,{'numeric'},{'size',[1,3]},1)
+            validateattributes(incType,{'char'},{},2)
+            mustBeMember(incType,{'dxyz','denu'})
+            
+            % Update of the recpos property will trigger update of
+            % satpos.local coordinates
+            obj.recpos = OBSRNX.addIncrementToRecpos(obj.recpos,increment,incType);
         end
         function saveToMAT(obj,outMatFullFileName)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -253,6 +245,14 @@ classdef OBSRNX
             fprintf('Saving RINEX "%s" to "%s" ...',obj.filename,outMatFileName);
             save(outMatFullFileName,'obj');
             fprintf(' [done]\n')
+        end
+        function obj = set.recpos(obj,recposInput)
+            obj.recpos = recposInput;
+            % Change also property satpos(i).localRefPoint what will force
+            % the satpos(i).local coordinates to be recalculated
+            for i = 1:numel(obj.satpos)
+                obj.satpos(i).localRefPoint = recposInput;
+            end
         end
 	end
 	
@@ -292,6 +292,20 @@ classdef OBSRNX
                 end
             end
         end
+        function recpos = addIncrementToRecpos(oldrecpos,increment,incType)
+            validateattributes(oldrecpos,{'numeric'},{'size',[1,3]},1)
+            validateattributes(increment,{'numeric'},{'size',[1,3]},2)
+            validateattributes(incType,{'char'},{},3)
+            mustBeMember(incType,{'dxyz','denu'})
+            switch incType
+                case 'dxyz'
+                    recpos = oldrecpos + increment;
+                case 'denu'
+                    ell = referenceEllipsoid('wgs84');
+                    [lat0,lon0,h0] = ecef2geodetic(oldrecpos(1),oldrecpos(2),oldrecpos(3),ell,'degrees');
+                    [xnew,ynew,znew] = enu2ecef(increment(1),increment(2),increment(3),lat0,lon0,h0,ell);
+                    recpos = [xnew,ynew,znew];
+            end
+        end
     end
 end
-
