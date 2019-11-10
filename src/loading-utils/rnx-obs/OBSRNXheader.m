@@ -4,6 +4,8 @@ classdef OBSRNXheader
         approxPos (1,3) double
         gnss (1,:) char
         leapSeconds (1,1) double
+        leapSecondsInfo (1,3) double
+        leapSecondsSystem (1,3) char
 		obsTypes struct
 		noObsTypes (1,:) double
         version (1,:) char
@@ -52,7 +54,11 @@ classdef OBSRNXheader
                     obj.approxPos = sscanf(line(1:60),'%f');
                 end
                 if contains(line,'LEAP SECONDS')
-                    obj.leapSeconds = str2double(strtrim(line(1:60)));
+                    obj.leapSeconds = str2double(strtrim(line(1:6)));
+                    obj.leapSecondsInfo(1) = str2double(strtrim(line(7:12)));
+                    obj.leapSecondsInfo(2) = str2double(strtrim(line(13:18)));
+                    obj.leapSecondsInfo(3) = str2double(strtrim(line(19:24)));
+                    obj.leapSecondsSystem = line(25:27);
                 end
                 if contains(line,'SIGNAL STRENGTH UNIT')
                     obj.signalStrengthUnit = strtrim(line(1:60));
