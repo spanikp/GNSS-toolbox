@@ -199,6 +199,35 @@ classdef OBSRNX
                 obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),recpos,satFlags);
             end
         end
+        function obj = recalcSatPosition(obj,recposNew)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Function to recalculate local coordinates (azi,elev,slant
+            % range) for given receiver position. Function will upload
+            % field obj.satpos.recpos and obj.satpos.local values, while
+            % obj.header.approxPos will not be changed.
+            %
+            % Input:
+            % recposNew - (3,1) array of receiver ECEF coordinates
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            validateattributes(recposNew,{'numeric'},{'size',[1,3]})
+            for i = 1:numel(obj.gnss)
+                obj.satpos(i).recpos = recposNew;
+                if isequal(recposNew,[0 0 0])
+                    obj.satpos(i).local(:) = {zeros(size(obj.satpos(i).gpstime,1),3)};
+                else
+                    ell = referenceEllipsoid('wgs84');
+                    [lat0,lon0,h0] = ecef2geodetic(recposNew(1),recposNew(2),recposNew(3),ell,'degrees');
+                    for j = 1:numel(obj.satpos(i).satList)
+                        timeSel = sum(obj.satpos(i).ECEF{j},2) ~= 0;
+                        [azi,elev,slantRange] = ecef2aer(obj.satpos(i).ECEF{j}(timeSel,1),...
+                            obj.satpos(i).ECEF{j}(timeSel,2),...
+                            obj.satpos(i).ECEF{j}(timeSel,3),...
+                            lat0,lon0,h0,ell);
+                        obj.satpos(i).local{j}(timeSel,:) = [azi,elev,slantRange];
+                    end
+                end
+            end
+        end
         function saveToMAT(obj,outMatFullFileName)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Store OBSRNX object to MAT file
