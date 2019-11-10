@@ -1,24 +1,60 @@
 classdef OBSRNX
 	properties
+        % header is OBSRNXheader object
 		header
+        
+        % path is rel/abs to folder where input RINEX file is stored
         path (1,:) char
+        
+        % filename is file in RINEX v3 format which stores GNSS observations 
         filename (1,:) char
+        
+        % gnss specify sat system (one of 'GREC')
         gnss (1,:) char
+        
+        % t gives moments of observation in GPS time system
+        % t = [year,month,day,hour,minute,second,GPSWeek,GPSSecond,datenum]
         t (:,9) double
+        
+        % epochFlags is struct which summarize epoch status
+        % struct is loaded from flags given for every epoch in RINEX files
+        % (for many static RINEX files this flags are empty)
         epochFlags (1,1) struct = struct('OK',[],'PowerFailure',[],'StartMovingAntenna',[],...
                                          'NewStationOccupation',[],'HeaderInfo',[],...
                                          'ExternalEvent',[],'CycleSlipRecord',[]);
+        
+        % recClockOffset is given for every observation epoch
+        % (for many static files this value is not set)
         recClockOffset (:,1) double
         
         % recpos - receiver position
         % Any update of this property will trigger recalculation of
         % satellites positions stored in satpos(i).local
         recpos (1,3) double 
+        
+        % obs is struct which stores observations for all GNSS given is
+        % gnss property. Rows of obs.(gnss) are epochs defined in t, columns
+        % are observation types stored in struct header.obsTypes. If sat was
+        % not measured in given epoch, zero value is stored in matrix.
         obs
+        
+        % obsqi s struct for quality index of observation given in obs
+        % (loaded from RINEX v3, many of obs quality indices are empty)
         obsqi
+        
+        % satTimeFlags is struct with matrices representing satellite/epochs
+        % in which given sat has at least one available observation:
+        % - rows represents epochs (specified in gpstime)
+        % - columns represents sats according satList array
         satTimeFlags
+        
+        % sat is struct with array of observed satellites
         sat
+        
+        % satblock represents sat block (like for GPS-IIM, GPS-IIF, ...
         satblock
+        
+        % satpos is array of SATPOS objects
 		satpos (1,:) SATPOS
 	end
 	

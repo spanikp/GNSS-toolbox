@@ -1,17 +1,47 @@
 classdef SATPOS
     properties
+        % gnss specify sat system (one of 'GREC')
         gnss (1,1) char
+        
+        % ephType specify if broadcast or precise ephemeris files will be
+        % used for sat coordinates calculation
         ephType (1,:) char {mustBeMember(ephType,{'broadcast','precise'})} = 'broadcast';
+        
+        % ephFolder is path to folder with bradcast/precise ephemeris files
         ephFolder (1,:) char
+        
+        % ephList comprise list of files which will be loaded for sat
+        % coordinates calculation
         ephList (1,:) cell
+        
+        % satList is array of sats which cordinates will be calculated
         satList (1,:) double
 
+        % gpstime define epochs which will be used for sat position
+        % calculation. gpstime are moments in GPS time system specified as:
+        % gpstime = [GPSWeek,GPSSecond]
         gpstime (:,2) double
+        
+        % ECEF contains Earth-centered-Earth-fixed coordinates of sats
+        % ECEF{i} is [N,3] matrix with: [X,Y,Z] in meters
         ECEF (1,:) cell
+        
+        % localRefPoint is topocentrum given in ECEF coordinates (meters)
         localRefPoint (1,3) double = [0,0,0]
+        
+        % satTimeFlags represents satellite/epochs in which given sat has at least
+        % one observation
+        % - rows represents epochs (specified in gpstime)
+        % - columns represents sats according satList array
         satTimeFlags (:,:) logical
     end
     properties (Dependent)
+        % local property contains local frame spherical coordinates of sats
+        % local{i} is [N,3] matrix with: [elevation,azimuth,slant range]
+        % (N is number of rows of gpstime property, units: degrees, meters)
+        %
+        % local is dependent property, what means that it will be automatically
+        % recalculated every time when localRefPoint is changed
         local (1,:) cell
     end
     
