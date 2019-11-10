@@ -47,61 +47,63 @@ classdef SATPOS
     
     methods
         function obj = SATPOS(gnss,satList,ephType,ephFolder,gpstime,localRefPoint,satTimeFlags)
-            obj.gnss = gnss;
-            obj.satList = satList;
-            obj.ephType = ephType;
-            obj.ephFolder = fullpath(ephFolder);
-            obj.gpstime = gpstime;
-            if nargin < 6
-                obj.localRefPoint = [0 0 0];
-                obj.satTimeFlags = true(size(gpstime,1),numel(satList));
-            end
-            if nargin == 6
-                obj.localRefPoint = localRefPoint;
-                obj.satTimeFlags = true(size(gpstime,1),numel(satList));
-            end
-            if nargin == 7
-               obj.localRefPoint = localRefPoint;
-               obj.satTimeFlags = satTimeFlags;
-            end
-            timeFrame = gps2greg(gpstime([1,end],:));
-            timeFrame = timeFrame(:,1:3);
-            
-            obj.ephList = prepareEph(gnss,ephType,ephFolder,timeFrame);
-            switch ephType
-                case 'broadcast'
-                    brdc = loadRINEXNavigation(obj.gnss,obj.ephFolder,obj.ephList);
-                    brdc = checkEphStatus(brdc);
-                    
-                    % Check if given sat and sat in brdc corresponds
-                    selSatNotPresent = ~ismember(obj.satList,brdc.sat);
-                    if any(selSatNotPresent)
-                        notPresentSats = obj.satList(selSatNotPresent);
-                        warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
-                        obj.satList = obj.satList(~selSatNotPresent);
-                        obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
-                    end
-                    if isempty(obj.satList)
-                        warning('No satellites to process! Program will end.')
-                        return
-                    end
-                    [obj.ECEF, ~] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.localRefPoint,obj.satTimeFlags);
-                    
-                case 'precise'
-                    fileListToLoad = cellfun(@(x) fullfile(obj.ephFolder,x),obj.ephList,'UniformOutput',false);
-                    eph = SP3(fileListToLoad,900,gnss);
-                    selSatNotPresent = ~ismember(obj.satList,eph.sat.(obj.gnss));
-                    if any(selSatNotPresent)
-                        notPresentSats = obj.satList(selSatNotPresent);
-                        warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
-                        obj.satList = obj.satList(~selSatNotPresent);
-                        obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
-                    end
-                    if isempty(obj.satList)
-                        warning('No satellites to process! Program will end.')
-                        return
-                    end
-                    [obj.ECEF, ~] = SATPOS.getPrecisePosition(obj.satList,obj.gpstime,eph,obj.localRefPoint,obj.satTimeFlags);
+            if nargin > 0
+                obj.gnss = gnss;
+                obj.satList = satList;
+                obj.ephType = ephType;
+                obj.ephFolder = fullpath(ephFolder);
+                obj.gpstime = gpstime;
+                if nargin < 6
+                    obj.localRefPoint = [0 0 0];
+                    obj.satTimeFlags = true(size(gpstime,1),numel(satList));
+                end
+                if nargin == 6
+                    obj.localRefPoint = localRefPoint;
+                    obj.satTimeFlags = true(size(gpstime,1),numel(satList));
+                end
+                if nargin == 7
+                    obj.localRefPoint = localRefPoint;
+                    obj.satTimeFlags = satTimeFlags;
+                end
+                timeFrame = gps2greg(gpstime([1,end],:));
+                timeFrame = timeFrame(:,1:3);
+                
+                obj.ephList = prepareEph(gnss,ephType,ephFolder,timeFrame);
+                switch ephType
+                    case 'broadcast'
+                        brdc = loadRINEXNavigation(obj.gnss,obj.ephFolder,obj.ephList);
+                        brdc = checkEphStatus(brdc);
+                        
+                        % Check if given sat and sat in brdc corresponds
+                        selSatNotPresent = ~ismember(obj.satList,brdc.sat);
+                        if any(selSatNotPresent)
+                            notPresentSats = obj.satList(selSatNotPresent);
+                            warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
+                            obj.satList = obj.satList(~selSatNotPresent);
+                            obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
+                        end
+                        if isempty(obj.satList)
+                            warning('No satellites to process! Program will end.')
+                            return
+                        end
+                        [obj.ECEF, ~] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.localRefPoint,obj.satTimeFlags);
+                        
+                    case 'precise'
+                        fileListToLoad = cellfun(@(x) fullfile(obj.ephFolder,x),obj.ephList,'UniformOutput',false);
+                        eph = SP3(fileListToLoad,900,gnss);
+                        selSatNotPresent = ~ismember(obj.satList,eph.sat.(obj.gnss));
+                        if any(selSatNotPresent)
+                            notPresentSats = obj.satList(selSatNotPresent);
+                            warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
+                            obj.satList = obj.satList(~selSatNotPresent);
+                            obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
+                        end
+                        if isempty(obj.satList)
+                            warning('No satellites to process! Program will end.')
+                            return
+                        end
+                        [obj.ECEF, ~] = SATPOS.getPrecisePosition(obj.satList,obj.gpstime,eph,obj.localRefPoint,obj.satTimeFlags);
+                end
             end
         end
         function local = get.local(obj)
