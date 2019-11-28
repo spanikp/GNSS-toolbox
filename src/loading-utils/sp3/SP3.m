@@ -5,8 +5,18 @@ classdef SP3
         gnss
         interval (1,1) double = 900
         t (:,9) double
+        
+        % sat specify list of satellites
         sat
+        
+        % pos is position of satellite CoM at given times t for given
+        % satellites sat
+        % pos is [nx3] array of [X,Y,Z] coordinates in meters (converted
+        % from kilometers as given in SP3 file)
         pos
+        
+        % clockData - contains satellite clock offset in second
+        % (converted from miliseconds as given in SP3 file)
         clockData
         satTimeFlags
     end
@@ -77,7 +87,53 @@ classdef SP3
                     z(i,1) = lagrange(obj.t(idxStart:idxEnd,9),obj.pos.(satsys){prnIdx}(idxStart:idxEnd,3),mtime(i)); 
                 end
             else
-                error('Satellite %s not available in ephemeris!',prn);
+                error('Unable to perform coordinates interpolation, satellite %d not available in ephemeris!',prn);
+            end
+        end
+        function tOffset = interpolateClocks(obj,satsys,prn,mtime,fitOrder)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Function to interpolate clock offsets from given SP3 data
+            % Inputs:
+            % mtime - datennum of moments for which clock offset will be
+            %         interpolated
+            % fitOrder - 0 - takes nearest value
+            %            1,2,3 - given fit order (linear, quadratic, cubic)
+            %
+            % Output:
+            % tOffset - interpolated clock offsets in seconds
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            if nargin == 4
+                fitOrder = 0;
+            end
+            
+            prnIdx = find(obj.sat.(satsys) == prn);
+            if fitOrder == 0    
+                tOffset = nan(numel(mtime),1);
+                if ~isempty(prnIdx)
+                    for i = 1:numel(mtime)
+                        midIdx = find(obj.t(:,9) - mtime(i) >= 0,1,'first');
+                        tOffset(i,1) = obj.clockData.(satsys){prnIdx}(midIdx,1);
+                        %idxStart = midIdx - 1;
+                        %idxEnd = midIdx + 1;
+                        %tOffset(i,1) = obj.t(idxStart:idxEnd,9),obj.clockData.(satsys){prnIdx}(idxStart:idxEnd,1),mtime(i));
+                    end
+                else
+                    error('Unable to perform clock interpolation, satellite %d not available in ephemeris!',prn);
+                end
+                
+                % Handle nan values in clock offset by linear order fit
+                selIsNan = isnan(tOffset);
+                if nnz(selIsNan) ~= 0
+                    fitCoeffs = polyfit(mtime(~selIsNan),tOffset(~selIsNan),1);
+                    tOffset(selIsNan) = polyval(fitCoeffs,mtime(selIsNan));
+                end
+            else
+                selIsNan = isnan(obj.clockData.(satsys){prnIdx});
+                selCloseTime = obj.t(:,9) >= min(mtime) & obj.t(:,9) <= max(mtime); 
+                fixedPoints = ~selIsNan & selCloseTime;
+                middleTimePoint = mean(obj.t(fixedPoints,9));
+                fitCoeffs = polyfit(obj.t(fixedPoints,9)-middleTimePoint,obj.clockData.(satsys){prnIdx}(fixedPoints),fitOrder);
+                tOffset = polyval(fitCoeffs,mtime-middleTimePoint);
             end
         end
     end
@@ -145,7 +201,7 @@ classdef SP3
                                 idxSat = find(sat.(line(2)) == prn);
                                 pos.(line(2)){idxSat}(idxEpoch,:) = xyzc(1:3)*1e3;
                                 if round(xyzc(4)) ~= 1e6
-                                    clockData.(line(2)){idxSat}(idxEpoch,:) = xyzc(4);
+                                    clockData.(line(2)){idxSat}(idxEpoch,:) = xyzc(4)*1e-6;
                                 end
                                 satTimeFlags.(line(2))(idxEpoch,idxSat) = true;
                             end
