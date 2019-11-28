@@ -1,4 +1,4 @@
-function pos = getSatPosGAL(GPStime,eph)
+function [pos,aux] = getSatPosGAL(GPStime,eph)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to compute position of Galileo satellites using set of broadcast
 % parameters according to Galileo OS SIS ICD document.
@@ -8,6 +8,8 @@ function pos = getSatPosGAL(GPStime,eph)
 %                   "loadRINEXNavigation.m"
 %
 % Output: pos     - [n x 3] matrix containing sat. coordinates [X, Y, Z]
+%         aux     - [n x 8] matrix with auiliary vars from computations
+%                 - aux = [tk,Mk,Ek,vk,uk,rk,ik,lamk];
 %
 % Peter Spanik, 21.5.2018
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -90,3 +92,6 @@ X = xDash.*cos(Omega) - yDash.*cos(ik).*sin(Omega);
 Y = xDash.*sin(Omega) + yDash.*cos(ik).*cos(Omega);
 Z = yDash.*sin(ik);
 pos = [X, Y, Z];
+
+% Auxiliary utput variables
+aux = [tk,Mk,Ek,vk,uk,rk,ik,Omega];

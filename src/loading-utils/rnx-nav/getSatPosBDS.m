@@ -1,4 +1,4 @@
-function pos = getSatPosBDS(GPStime,eph)
+function [pos,aux] = getSatPosBDS(GPStime,eph)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to compute position of Beidou satellites using set of broadcast
 % parameters according to GPS ICD document.
@@ -8,6 +8,8 @@ function pos = getSatPosBDS(GPStime,eph)
 %                   "loadRINEXNavigation.m"
 %
 % Output: pos     - [n x 3] matrix containing sat. coordinates [X, Y, Z]
+%         aux     - [n x 8] matrix with auiliary vars from computations
+%                 - aux = [tk,Mk,Ek,vk,uk,rk,ik,lamk];
 %
 % Peter Spanik, 21.5.2018
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -107,13 +109,8 @@ else
     Xk =  X_GK.*cos(const.wE*tk) + Y_GK.*sin(const.wE*tk).*cosd(-5) + Z_GK.*sin(const.wE*tk).*sind(-5);
     Yk = -X_GK.*sin(const.wE*tk) + Y_GK.*cos(const.wE*tk).*cosd(-5) + Z_GK.*cos(const.wE*tk).*sind(-5);
     Zk =                         - Y_GK.*sind(-5)                   + Z_GK.*cosd(-5);
-    pos = [Xk, Yk, Zk]; 
+    pos = [Xk, Yk, Zk];
 end
 
-
-
-    
-
-
-
-
+% Auxiliary utput variables
+aux = [tk,Mk,Ek,vk,uk,rk,ik,Omegak];
