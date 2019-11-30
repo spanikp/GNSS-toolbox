@@ -1,4 +1,4 @@
-function pos = getSatPosGPS(GPStime,eph)
+function [pos,aux] = getSatPosGPS(GPStime,eph)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to compute position of GPS satellites using set of broadcast
 % parameters according to GPS ICD document.
@@ -8,6 +8,8 @@ function pos = getSatPosGPS(GPStime,eph)
 %                   "loadRINEXNavigation.m"
 %
 % Output: pos     - [n x 3] matrix containing sat. coordinates [X, Y, Z]
+%         aux     - [n x 8] matrix with auiliary vars from computations
+%                 - aux = [tk,Mk,Ek,vk,uk,rk,ik,lamk];
 %
 % Peter Spanik, 16.5.2018
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -85,9 +87,6 @@ lamk = mod(lamk, 2*pi);
 pos = [rk.*(cos(lamk).*cos(uk) - sin(lamk).*sin(uk).*cos(ik)),...
        rk.*(sin(lamk).*cos(uk) + cos(lamk).*sin(uk).*cos(ik)),...
        rk.*sin(uk).*sin(ik)];
-
-    
-
-
-
-
+   
+% Auxiliary utput variables
+aux = [tk,Mk,Ek,vk,uk,rk,ik,lamk];

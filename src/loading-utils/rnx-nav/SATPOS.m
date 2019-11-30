@@ -1,92 +1,164 @@
 classdef SATPOS
     properties
+        % gnss specify sat system (one of 'GREC')
         gnss (1,1) char
+        
+        % ephType specify if broadcast or precise ephemeris files will be
+        % used for sat coordinates calculation
         ephType (1,:) char {mustBeMember(ephType,{'broadcast','precise'})} = 'broadcast';
+        
+        % ephFolder is path to folder with bradcast/precise ephemeris files
         ephFolder (1,:) char
+        
+        % ephList comprise list of files which will be loaded for sat
+        % coordinates calculation
         ephList (1,:) cell
+        
+        % satList is array of sats which cordinates will be calculated
         satList (1,:) double
 
+        % gpstime define epochs which will be used for sat position
+        % calculation. gpstime are moments in GPS time system specified as:
+        % gpstime = [GPSWeek,GPSSecond]
         gpstime (:,2) double
+        
+        % ECEF contains Earth-centered-Earth-fixed coordinates of sats
+        % ECEF{i} is [N,3] matrix with: [X,Y,Z] in meters
         ECEF (1,:) cell
-        local (1,:) cell
-        recpos (1,3) double = [0,0,0]
+        
+        % localRefPoint is topocentrum given in ECEF coordinates (meters)
+        localRefPoint (1,3) double = [0,0,0]
+        
+        % satTimeFlags represents satellite/epochs in which given sat has at least
+        % one observation
+        % - rows represents epochs (specified in gpstime)
+        % - columns represents sats according satList array
         satTimeFlags (:,:) logical
+        
+        % SVclockCorr - satellite clock correction at given timestamps
+        % which takes into account also relativistic correction (in sec.)
+        SVclockCorr (1,:) cell
+    end
+    properties (Dependent)
+        % local property contains local frame spherical coordinates of sats
+        % local{i} is [N,3] matrix with: [elevation,azimuth,slant range]
+        % (N is number of rows of gpstime property, units: degrees, meters)
+        %
+        % local is dependent property, what means that it will be automatically
+        % recalculated every time when localRefPoint is changed
+        local (1,:) cell
     end
     
     methods
-        function obj = SATPOS(gnss,satList,ephType,ephFolder,gpstime,recpos,satTimeFlags)
-            obj.gnss = gnss;
-            obj.satList = satList;
-            obj.ephType = ephType;
-            obj.ephFolder = ephFolder;
-            obj.gpstime = gpstime;
-            if nargin < 6
-                obj.recpos = [0 0 0];
-                obj.satTimeFlags = true(size(gpstime,1),numel(satList));
+        function obj = SATPOS(gnss,satList,ephType,ephFolder,gpstime,localRefPoint,satTimeFlags)
+            if nargin > 0
+                obj.gnss = gnss;
+                obj.satList = satList;
+                obj.ephType = ephType;
+                obj.ephFolder = fullpath(ephFolder);
+                obj.gpstime = gpstime;
+                if nargin < 6
+                    obj.localRefPoint = [0 0 0];
+                    obj.satTimeFlags = true(size(gpstime,1),numel(satList));
+                end
+                if nargin == 6
+                    obj.localRefPoint = localRefPoint;
+                    obj.satTimeFlags = true(size(gpstime,1),numel(satList));
+                end
+                if nargin == 7
+                    obj.localRefPoint = localRefPoint;
+                    obj.satTimeFlags = satTimeFlags;
+                end
+                timeFrame = gps2greg(gpstime([1,end],:));
+                timeFrame = timeFrame(:,1:3);
+                
+                obj.ephList = prepareEph(gnss,ephType,ephFolder,timeFrame);
+                switch ephType
+                    case 'broadcast'
+                        brdc = loadRINEXNavigation(obj.gnss,obj.ephFolder,obj.ephList);
+                        brdc = checkEphStatus(brdc);
+                        
+                        % Check if given sat and sat in brdc corresponds
+                        selSatNotPresent = ~ismember(obj.satList,brdc.sat);
+                        if any(selSatNotPresent)
+                            notPresentSats = obj.satList(selSatNotPresent);
+                            warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
+                            obj.satList = obj.satList(~selSatNotPresent);
+                            obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
+                        end
+                        if isempty(obj.satList)
+                            warning('No satellites to process! Program will end.')
+                            return
+                        end
+                        [obj.ECEF, ~, obj.SVclockCorr] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.localRefPoint,obj.satTimeFlags);
+                        
+                    case 'precise'
+                        fileListToLoad = cellfun(@(x) fullfile(obj.ephFolder,x),obj.ephList,'UniformOutput',false);
+                        eph = SP3(fileListToLoad,900,gnss);
+                        selSatNotPresent = ~ismember(obj.satList,eph.sat.(obj.gnss));
+                        if any(selSatNotPresent)
+                            notPresentSats = obj.satList(selSatNotPresent);
+                            warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
+                            obj.satList = obj.satList(~selSatNotPresent);
+                            obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
+                        end
+                        if isempty(obj.satList)
+                            warning('No satellites to process! Program will end.')
+                            return
+                        end
+                        [obj.ECEF, ~, obj.SVclockCorr] = SATPOS.getPrecisePosition(obj.satList,obj.gpstime,eph,obj.localRefPoint,obj.satTimeFlags);
+                end
             end
-            if nargin == 6
-                obj.recpos = recpos;
-                obj.satTimeFlags = true(size(gpstime,1),numel(satList));
-            end
-            if nargin == 7
-               obj.recpos = recpos;
-               obj.satTimeFlags = satTimeFlags;
-            end
-            timeFrame = gps2greg(gpstime([1,end],:));
-            timeFrame = timeFrame(:,1:3);
-            
-            switch ephType
-                case 'broadcast'
-                    ephListStruct = prepareEph(gnss,ephType,ephFolder,timeFrame);
-                    obj.ephList = ephListStruct.(gnss);
-                    brdc = loadRINEXNavigation(obj.gnss,obj.ephFolder,obj.ephList);
-                    brdc = checkEphStatus(brdc);
-                    
-                    % Check if given sat and sat in brdc corresponds
-                    selSatNotPresent = ~ismember(obj.satList,brdc.sat);
-                    if any(selSatNotPresent)
-                        notPresentSats = obj.satList(selSatNotPresent);
-                        warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
-                        obj.satList = obj.satList(~selSatNotPresent);
-                        obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
+        end
+        function local = get.local(obj)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Method to automatically update local property
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            for i = 1:size(obj.ECEF,2)
+                local = cell(1,numel(obj.satList));
+                local(:) = {zeros(size(obj.gpstime,1),3)};
+                if ~isequal(obj.localRefPoint,[0 0 0])
+                    ell = referenceEllipsoid('wgs84');
+                    [lat0,lon0,h0] = ecef2geodetic(obj.localRefPoint(1),obj.localRefPoint(2),obj.localRefPoint(3),ell,'degrees');
+                    for j = 1:numel(obj.satList)
+                        timeSel = sum(obj.ECEF{j},2) ~= 0;
+                        [azi,elev,slantRange] = ecef2aer(obj.ECEF{j}(timeSel,1),...
+                            obj.ECEF{j}(timeSel,2),...
+                            obj.ECEF{j}(timeSel,3),...
+                            lat0,lon0,h0,ell);
+                        local{j}(timeSel,:) = [elev,azi,slantRange];
                     end
-                    if isempty(obj.satList)
-                        warning('No satellites to process! Program will end.')
-                        return
-                    end
-                    [obj.ECEF, obj.local] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.recpos,obj.satTimeFlags);
-                    
-                case 'precise'
-                    
+                end
             end
-            
         end
     end
     
     methods (Static)
-        function [ECEF, local] = getBroadcastPosition(satList,gpstime,brdc,recpos,satTimeFlags)
+        function [ECEF, local, SVclockCorr] = getBroadcastPosition(satList,gpstime,brdc,localRefPoint,satTimeFlags)
             validateattributes(satList,{'double'},{'nonnegative'},1)
             validateattributes(gpstime,{'double'},{'size',[NaN,2]},2)
             validateattributes(brdc,{'struct'},{},3)
             if nargin < 4
-                recpos = [0,0,0];
+                localRefPoint = [0,0,0];
                 satTimeFlags = true(size(gpstime,1),numel(satList));
             elseif nargin < 5
                 satTimeFlags = true(size(gpstime,1),numel(satList));
             end
-            validateattributes(recpos,{'double'},{'size',[1,3]},4)
+            validateattributes(localRefPoint,{'double'},{'size',[1,3]},4)
             validateattributes(satTimeFlags,{'logical'},{'size',[size(gpstime,1),numel(satList)]},5)
                 
             satsys =  brdc.gnss;
             fprintf('\n############################################################\n')
-            fprintf('##### Load and compute satellite position for %s system #####\n',satsys)
+            fprintf('### Computing satellite position for %s system (BROADCAST) ##\n',satsys)
             fprintf('############################################################\n')
 
             % Allocate satellite position (satpos) cells
             ECEF = cell(1,numel(satList));
             local = cell(1,numel(satList));
+            SVclockCorr = cell(1,numel(satList));
             ECEF(:) = {zeros(size(gpstime,1),3)};
             local(:) = {zeros(size(gpstime,1),3)};
+            SVclockCorr(:) = {zeros(size(gpstime,1),1)};
             
             % Looping throught all satellites in observation file
             fprintf('>>> Computing satellite positions >>>\n')
@@ -115,7 +187,7 @@ classdef SATPOS
                 end
                 
                 PRNephAll = brdc.eph{selEph};
-                ecef = zeros(nnz(PRNtimeSel),3);
+                %ecef = zeros(nnz(PRNtimeSel),3);
                 
                 % Time variables
                 GPSTimeWanted = gpstime(PRNtimeSel,:);
@@ -159,27 +231,45 @@ classdef SATPOS
                     GPStime = GPSTimeWanted(selTime,:);
                     eph     = PRNephAll(:,uniqueIdxEpoch(j));
                     
-                    % Select function according to satellite system
+                    % Select function according to satellite system and
+                    % compute sat position, clock offsets and relativity
+                    % correction
                     switch satsys
                         case 'G'
-                            ecef = getSatPosGPS(GPStime,eph);
+                            [ecef,aux] = getSatPosGPS(GPStime,eph);
+                            clockPolyCorr = getSVClockCorrection(GPStime,eph(7:8)',eph(12:14)');
+                            clockRelativisticCorr = getSVRelativityClockCorrection(satsys,eph(22),eph(20),rad2deg(aux(:,3)));
                         case 'R'
                             GLOtime = GLOTimeWanted(selTime,:);
                             ecef = getSatPosGLO(GLOtime,eph)';
+                            % Relativistic correction for GLONASS is
+                            % included in polynomial coefficients
+                            clockPolyCorr = getSVClockCorrection(GLOtime,eph(7:8)',[eph(12:13);0]');
+                            clockRelativisticCorr = zeros(size(GLOtime,1),1);
                         case 'E'
-                            ecef = getSatPosGAL(GPStime,eph);
+                            [ecef,aux] = getSatPosGAL(GPStime,eph);
+                            clockPolyCorr = getSVClockCorrection(GPStime,eph(7:8)',eph(12:14)');
+                            clockRelativisticCorr = getSVRelativityClockCorrection(satsys,eph(22),eph(20),rad2deg(aux(:,3)));
                         case 'C'
                             BDStime = BDSTimeWanted(selTime,:);
-                            ecef = getSatPosBDS(BDStime,eph);
+                            [ecef,aux] = getSatPosBDS(BDStime,eph);
+                            clockPolyCorr = getSVClockCorrection(BDStime,eph(7:8)',eph(12:14)');
+                            clockRelativisticCorr = getSVRelativityClockCorrection(satsys,eph(22),eph(20),rad2deg(aux(:,3)));
                     end
+                    clockCorr = clockPolyCorr + clockRelativisticCorr;
+                    
+                    % Put selected time results to output
                     temp = ECEF{i}(PRNtimeSel,:);
                     temp(selTime,:) = ecef;
                     ECEF{i}(PRNtimeSel,:) = temp;
+                    temp = SVclockCorr{i}(PRNtimeSel,:);
+                    temp(selTime,:) = clockCorr;
+                    SVclockCorr{i}(PRNtimeSel,:) = temp; 
                     
                     % Compute azimuth, alevation and slant range
-                    if ~isequal(recpos,[0 0 0])
+                    if ~isequal(localRefPoint,[0 0 0])
                         ell = referenceEllipsoid('wgs84');
-                        [lat0,lon0,h0] = ecef2geodetic(recpos(1),recpos(2),recpos(3),ell,'degrees');
+                        [lat0,lon0,h0] = ecef2geodetic(localRefPoint(1),localRefPoint(2),localRefPoint(3),ell,'degrees');
                         [azi,elev, slantRange] = ecef2aer(ecef(:,1),ecef(:,2),ecef(:,3),lat0,lon0,h0,ell);
                         temp = local{i}(PRNtimeSel,:);
                         temp(selTime,:) = [elev, azi, slantRange];
@@ -199,6 +289,80 @@ classdef SATPOS
 %             obsrnx.obs.(satsys)(selNotComputedPositions) = [];
 %             obsrnx.obsqi.(satsys)(selNotComputedPositions) = [];
 
+        end
+        function [ECEF, local, SVclockCorr] = getPrecisePosition(satList,gpstime,eph,localRefPoint,satTimeFlags)
+            validateattributes(satList,{'double'},{'nonnegative'},1)
+            validateattributes(gpstime,{'double'},{'size',[NaN,2]},2)
+            validateattributes(eph,{'SP3'},{'size',[1,1]},3)
+            if nargin < 4
+                localRefPoint = [0,0,0];
+                satTimeFlags = true(size(gpstime,1),numel(satList));
+            elseif nargin < 5
+                satTimeFlags = true(size(gpstime,1),numel(satList));
+            end
+            validateattributes(localRefPoint,{'double'},{'size',[1,3]},4)
+            validateattributes(satTimeFlags,{'logical'},{'size',[size(gpstime,1),numel(satList)]},5)
+                
+            satsys =  eph.gnss;
+            assert(numel(satsys)==1,'Method "SATPOS.getPrecisePosition" is limited to run with single satellite system!');
+            fprintf('\n############################################################\n')
+            fprintf('#### Computing satellite position for %s system (PRECISE) ###\n',satsys)
+            fprintf('############################################################\n')
+
+            % Allocate satellite position (satpos) cells
+            ECEF = cell(1,numel(satList));
+            local = cell(1,numel(satList));
+            SVclockCorr = cell(1,numel(satList));
+            ECEF(:) = {zeros(size(gpstime,1),3)};
+            local(:) = {zeros(size(gpstime,1),3)};
+            SVclockCorr(:) = {zeros(size(gpstime,1),1)};
+            
+            % Looping throught all satellites in observation file
+            fprintf('>>> Computing satellite positions >>>\n')
+            selSatNotPresent = ~ismember(satList,eph.sat.(satsys));
+            if any(selSatNotPresent)
+                notPresentSats = satList(selSatNotPresent);
+                warning('Following sats of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',...
+                    satsys,strjoin(strsplit(num2str(notPresentSats)),','))
+                satList = satList(~selSatNotPresent);
+                satTimeFlags = satTimeFlags(:,~selSatNotPresent);
+            end
+            if isempty(satList)
+                warning('No satellites to process! Program will end.')
+                return 
+            end
+            nSats = length(satList);
+            for i = 1:nSats
+                PRN = satList(i);
+                fprintf(' -> computing satellite %s%02d ',satsys,PRN);
+                
+                % Selection of only non-zero epochs
+                PRNtimeSel = satTimeFlags(:,i);
+                selEph = eph.sat.(satsys) == PRN;
+                if nnz(selEph) == 0
+                    fprintf('(skipped - missing ephemeris for satellite)\n');
+                    continue;
+                end
+                
+                % Make Lagrange 10-th order interpolation
+                GPSTimeWanted = gpstime(PRNtimeSel,:);
+                mTimeWanted   = gps2matlabtime(GPSTimeWanted);
+                [x,y,z] = eph.interpolatePosition(satsys,PRN,mTimeWanted);
+                clockOffset = eph.interpolateClocks(satsys,PRN,mTimeWanted,2);
+                ECEF{i}(PRNtimeSel,:) = [x,y,z];
+                SVclockCorr{i}(PRNtimeSel) = clockOffset;
+                
+                % Compute azimuth, alevation and slant range
+                if ~isequal(localRefPoint,[0 0 0])
+                    ell = referenceEllipsoid('wgs84');
+                    [lat0,lon0,h0] = ecef2geodetic(localRefPoint(1),localRefPoint(2),localRefPoint(3),ell,'degrees');
+                    [azi,elev,slantRange] = ecef2aer(x,y,z,lat0,lon0,h0,ell);
+                    local{i}(PRNtimeSel,:) = [elev,azi,slantRange];
+                end
+                if sum(sum([ECEF{i}, local{i}])) ~= 0
+                    fprintf('(done)\n');
+                end
+            end
         end
     end
 end

@@ -1,35 +1,37 @@
-function out = xtr2MPskyplot(xtrFileName, MPcode, saveFig, options)
+function out = xtr2SNRskyplot(xtrFileName, SNRcode, saveFig, options)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Function to read Gnut-Anubis XTR output file and make MP skyplot graphs.
+% Function to read Gnut-Anubis XTR output file and make SNR skyplot graphs.
 % Process iterates through all available satellite systems (it will
-% detect automatically) and try to plot given MP combination.
+% detect automatically) and try to plot given SNR values.
 %
 % Input:
 % xtrFileName - name of XTR file
-% MPcode - 2-char representation of MP code combination to plot
-%        - values corresponding to RINEX v2 code measurements
+% SNRcode - 2-char representation of MP code combination to plot
+%        - values corresponding to RINEX v2/v3 SNR measurements
 %
 % Optional:
 % saveFig - true/false flag to export plots to PNG file (default: true)
 % options - structure of plot settings (see getDefaultXTRoptions.m)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+validateattributes(xtrFileName,{'char'},{},1)
+validateattributes(SNRcode,{'char'},{'size',[1,3]},2)
 
-% Get default options
-opt = getDefaultXTRoptions();
+% Default options
+opt = getDefaultXTRoptions('SNR');
 
 % Check input values
 if nargin == 2
    saveFig = true;
    options = opt;
-   if ~ischar(xtrFileName) || ~ischar(MPcode)
-      error('Inputs "xtrFileName" and "MPcode" have to be strings!') 
+   if ~ischar(xtrFileName) || ~ischar(SNRcode)
+      error('Inputs "xtrFileName" and "SNRcode" have to be strings!') 
    end
    
 elseif nargin == 3
     saveFig = logical(saveFig);
-   if ~ischar(xtrFileName) || ~ischar(MPcode) || numel(saveFig) ~= 1 
-      error('Inputs "xtrFileName","MPcode" have to be strings and "saveFig" has to be single value!') 
+   if ~ischar(xtrFileName) || ~ischar(SNRcode) || numel(saveFig) ~= 1 
+      error('Inputs "xtrFileName","SNRcode" have to be strings and "saveFig" has to be single value!') 
    end
    options = opt;
 
@@ -99,17 +101,17 @@ for i = 1:length(GNScell)
     end
     
     % Multipath loading
-    selMP_GNS = cellfun(@(c) strcmp([' ', GNScell{i}, 'M', MPcode(end-1:end)], c(1:7)), data);
-    if nnz(selMP_GNS) == 0
-        warning('For %s system MP combination %s not available!',GNScell{i},MPcode)
+    selSNR_GNS = cellfun(@(c) strcmp([' ', GNScell{i}, 'S', SNRcode(end-1:end)], c(1:7)), data);
+    if nnz(selSNR_GNS) == 0
+        warning('For %s system SNR %s not available!',GNScell{i},SNRcode)
         AZI.(GNScell{i}).vector = [];
         ELE.(GNScell{i}).vector = [];
         continue
     end
-    dataCell = data(selMP_GNS);
+    dataCell = data(selSNR_GNS);
     [timeStamp, meanVal, dataMatrix] = dataCell2matrix(dataCell);
-    MP.(GNScell{i}).time = timeStamp;
-    MP.(GNScell{i}).meanVals = meanVal;
+    SNR.(GNScell{i}).time = timeStamp;
+    SNR.(GNScell{i}).meanVals = meanVal;
     if size(dataMatrix,1) ~= size(sel1,1)
         % Find indices logical indices of not missing values
         idxNotMissing = ismember(timeStampsUni,timeStamp);
@@ -122,26 +124,25 @@ for i = 1:length(GNScell)
         dataMatrix = newdataMatrix;
     end
     
-    MP.(GNScell{i}).vals = dataMatrix;
+    SNR.(GNScell{i}).vals = dataMatrix;
     sel3 = ~isnan(dataMatrix);
 
     sel = sel1 & sel2 & sel3;
     ELE.(GNScell{i}).vector = ELE.(GNScell{i}).vals(sel);
     AZI.(GNScell{i}).vector = AZI.(GNScell{i}).vals(sel);
-    MP.(GNScell{i}).vector = MP.(GNScell{i}).vals(sel);
+    SNR.(GNScell{i}).vector = SNR.(GNScell{i}).vals(sel);
 end
 
 % Put output together
 out.AZI = AZI;
 out.ELE = ELE;
-out.MP = MP;
+out.SNR = SNR;
 
 allGNSSSatPos.azi = allGNSSSatPos.azi(:);
 allGNSSSatPos.ele = allGNSSSatPos.ele(:);
 selNotNan = ~isnan(allGNSSSatPos.azi) & ~isnan(allGNSSSatPos.ele);
 allGNSSSatPos.azi = allGNSSSatPos.azi(selNotNan);
 allGNSSSatPos.ele = allGNSSSatPos.ele(selNotNan);
-
 
 % Loop for plotting when data are loaded
 for i = 1:length(GNScell)
@@ -154,7 +155,7 @@ for i = 1:length(GNScell)
     aziBins = 0:3:360;
     eleBins = 0:3:90;
     [azig, eleg] = meshgrid(aziBins, eleBins);
-    F = scatteredInterpolant(AZI.(GNScell{i}).vector,ELE.(GNScell{i}).vector,MP.(GNScell{i}).vector,'linear','none');
+    F = scatteredInterpolant(AZI.(GNScell{i}).vector,ELE.(GNScell{i}).vector,SNR.(GNScell{i}).vector,'linear','none');
     mpg = F(azig,eleg);
     mpg(isnan(mpg)) = -1;
     
@@ -191,7 +192,7 @@ for i = 1:length(GNScell)
         c.LineWidth = 1.1;
         c.FontSize = 10;
         caxis(options.colorBarLimits)
-        ylabel(c,sprintf('%s RMS MP%s value (cm)',GNScell{i},MPcode),'fontsize',10,'fontname','arial')
+        ylabel(c,sprintf('Mean %s SNR %s value (dBHz)',GNScell{i},SNRcode),'fontsize',10,'fontname','arial')
     else
         caxis(options.colorBarLimits)
     end
@@ -206,7 +207,7 @@ for i = 1:length(GNScell)
     % Exporting figure
     if saveFig == true
         [~, fileName, ~] = fileparts(xtrFileName);
-        figName = fullfile(options.figSavePath, [fileName '_', GNScell{i}, '_MP', MPcode]);
+        figName = fullfile(options.figSavePath, [fileName '_', GNScell{i}, '_SNR', SNRcode]);
         print(figName,'-dpng',sprintf('-r%s',options.figResolution))
     end
 end
