@@ -189,7 +189,8 @@ function [Xi,Yi,Zi] = polarplot3d(Zp,varargin)
 % 4    Support for non-uniform grid spacing. Removed redundant 'MeshL' plot type
 % 4.1  Replaced optional 'PlotProps' cell argument with 'property',value list
 % 4.2  Added 'RadLabels', 'RadLabelLocation' and 'RadLabelColor' properties
-
+%
+%
 % -- Help
 
 % Polarplot3d was called without arguments
