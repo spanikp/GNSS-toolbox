@@ -115,10 +115,9 @@ classdef SATPOS
             % Method to automatically update local property
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             for i = 1:size(obj.ECEF,2)
-                if isequal(obj.localRefPoint,[0 0 0])
-                    local = cell(1,numel(obj.satList));
-                    local(:) = {zeros(size(obj.gpstime,1),3)};
-                else
+                local = cell(1,numel(obj.satList));
+                local(:) = {zeros(size(obj.gpstime,1),3)};
+                if ~isequal(obj.localRefPoint,[0 0 0])
                     ell = referenceEllipsoid('wgs84');
                     [lat0,lon0,h0] = ecef2geodetic(obj.localRefPoint(1),obj.localRefPoint(2),obj.localRefPoint(3),ell,'degrees');
                     for j = 1:numel(obj.satList)
