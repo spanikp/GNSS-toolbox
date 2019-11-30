@@ -95,6 +95,8 @@ for i = 1:numel(filesToDownload)
         end
     else
         fprintf(' -> %s [exist in folder]', filename);
+        cd(currentFolder)
+        return
     end
 
     % Extract file
