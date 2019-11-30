@@ -22,7 +22,7 @@ GNSSS-toolbox is a set of functions and classes written in MATLAB language to lo
 * For unpacking files downloaded from GNSS datacenters [7-zip](https://www.7-zip.org/download.html) application is used, so executable has to be added in system PATH variable
 
 ## Examples
-See `examples` folder with script to load RINEX observation file and computation of satellite positions in ECEF and local reference frame [testRinexLoadObsPos.m](examples/testRinexLoadObsPos.m). 
+See `examples` folder with script `testRinexLoadObsPos.m` to load RINEX observation file and computation of satellite positions in ECEF and local reference frame. 
 
 ## Development
 Latest functionality is tracked in `dev` branch.
