@@ -220,7 +220,7 @@ classdef OBSRNX
         end
         function obj = computeSatPosition(obj,ephType,ephFolder)
             validateattributes(ephType,{'char'},{},2)
-            assert(ismember(ephType,{'broadcast','precise'}),'Input "ephType" can be set to "broadcast" or "precise" only!')
+            mustBeMember(ephType,{'broadcast','precise'})
             if nargin == 2
             	switch ephType
                     case 'broadcast'
@@ -289,6 +289,18 @@ classdef OBSRNX
             for i = 1:numel(obj.satpos)
                 obj.satpos(i).localRefPoint = recposInput;
             end
+        end
+        function data = getObservation(obj,gnss,satNo,obsType)
+            validateattributes(gnss,{'char'},{'nonempty'},1);
+            validatestring(gnss,split(obj.gnss,''));
+            validateattributes(satNo,{'double'},{'scalar','positive'},2);
+            mustBeMember(satNo,obj.sat.(gnss))
+            validateattributes(obsType,{'char'},{'size',[1,3]},3);
+            validatestring(obsType,obj.header.obsTypes.(gnss));
+            satIdx = obj.sat.(gnss) == satNo;
+            obsTypeIdx = strcmp(obsType,obj.header.obsTypes.(gnss));
+            data = obj.obs.(gnss)(satIdx);
+            data = data{1}(:,obsTypeIdx);
         end
 	end
 	
