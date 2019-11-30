@@ -45,6 +45,7 @@ end
 
 % Select only files which fullfill YearDay or WeekDoy condition
 fileOKIdx = 1;
+fileList = cell(1,1);
 for i = 1:numel(dt)
     ix1 = find(fileIsCompliantYearDay(:,i));
     if ~isempty(ix1)
@@ -60,14 +61,16 @@ for i = 1:numel(dt)
 end
 
 % Processing center extraction (from SP3 file header's)
-agency = cell(size(fileList));
-for i = 1:numel(agency)
-    sp3header = SP3header(fullfile(folderEph,fileList{i}));
-    agency{i} = sp3header.agency;
-end
-
-% raise warning if there are more centers among SP3 files
-if numel(unique(agency)) > 1
-    error('\nPrecise ephemeris files in "%s" are from more analysis centers: %s!\nProvide ephemeris only from one analysis center!\n',folderEph,strjoin(unique(agency),', '));
+if all(cellfun(@(x) ~isempty(x),fileList))
+    agency = cell(size(fileList));
+    for i = 1:numel(agency)
+        sp3header = SP3header(fullfile(folderEph,fileList{i}));
+        agency{i} = sp3header.agency;
+    end
+    
+    % raise warning if there are more centers among SP3 files
+    if numel(unique(agency)) > 1
+        error('\nPrecise ephemeris files in "%s" are from more analysis centers: %s!\nProvide ephemeris only from one analysis center!\n',folderEph,strjoin(unique(agency),', '));
+    end
 end
 
