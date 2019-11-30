@@ -23,8 +23,29 @@ addpath(genpath('../src'))
 %eph = SP3.loadFromMAT('../data/testEphMulti.mat');
 
 % Test SATPOS with precise ephemeris
-[gpsw, gpss] = greg2gps([2019 03 20 00 00 00;
-                         2019 03 20 00 00 02]);
-satpos = SATPOS('G',[1,2,5],'precise','../data/eph',[gpsw, gpss]);
+d = (datetime(2019,03,21,0,0,0):seconds(60):datetime(2019,03,21,23,0,0))';
+[gpsw, gpss] = greg2gps([year(d),month(d),day(d),hour(d),minute(d),second(d)]);
+satposG = SATPOS('G',[1,2,5],'precise','../test/data/eph',[gpsw, gpss]);
+satposR = SATPOS('R',[1,2,5],'precise','../test/data/eph',[gpsw, gpss]);
 
+% GPS plot
+figure
+crdOrder = {'X_{ECEF}','Y_{ECEF}','Z_{ECEF}'};
+for i = 1:3
+    plot(d,satposG.ECEF{3}(:,i),'DisplayName',crdOrder{i})
+    hold on; grid on; box on;
+end
+ylabel('Coordinates (m)')
+legend()
+title('Satellite G05 ECEF coordinates of CoM')
+
+% GLONASS plot
+figure
+for i = 1:3
+    plot(d,satposR.ECEF{3}(:,i),'DisplayName',crdOrder{i})
+    hold on; grid on; box on;
+end
+ylabel('Coordinates (m)')
+legend()
+title('Satellite R05 ECEF coordinates of CoM')
 
