@@ -10,9 +10,8 @@ GNSSS-toolbox is a set of functions and classes written in MATLAB language to lo
 * Compute satellite positions
   * using broadcast ephemeris (according the Interface Control Documents for given satellite system)
   * using SP3 product files (using 10th order Lagrange interpolation)
-  * satellite positions can be computed in ECEF or in local horizontal frame. Cartesian coordinates X, Y, Z are used for ECEF reference frame, while spherical coordinates elevation, azimuth and slant range is used for local reference frame
-  * also satellite clock correction is computed in both cases (relativistic correction is accounted only in case of broadcast ephemeris)
-
+  * satellite positions can be computed in ECEF or in local horizontal frame. Cartesian coordinates X, Y, Z are used for ECEF reference frame, while spherical coordinates elevation, azimuth and slant range is used for local reference frame. Also satellite clock correction is computed in both cases (relativistic correction is accounted only in case of broadcast ephemeris)
+  
 * Visualization functions:
   * visualize XTR output files from [G-NUT/anubis application](https://www.pecny.cz/GOP/index.php/gnss/sw/anubis) 
   * this functions has its own [README](src/xtr-utils/README.md) file with examples

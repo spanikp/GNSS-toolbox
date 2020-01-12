@@ -43,6 +43,4 @@ xtr2SNRskyplot('example/xtr-utils/GANP.xtr','S2W',saveFigFlag,opt)
 
 * Cycle-slips density skyplot
 
-<p align="center">
-  <img src="../../example/xtr-utils/img/GANP_allGNSS_cycle-slips.png" width="350"/>
-</p>
+<img src="../../example/xtr-utils/img/GANP_allGNSS_cycle-slips.png" width="350" float="center"/>
