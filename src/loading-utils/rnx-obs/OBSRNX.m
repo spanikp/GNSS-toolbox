@@ -95,6 +95,7 @@ classdef OBSRNX
                 
                 % Copy body part to new structure
                 bodyBuffer = fileBuffer(obj.header.headerSize+1:end);
+                clear fileBuffer;
                 obj.obs = struct();
                 
                 % Find time moments
@@ -102,6 +103,10 @@ classdef OBSRNX
                 timeSelection = cellfun(@(x) strcmp(x(1),'>'), bodyBuffer);
                 epochRecords = cell2mat(cellfun(@(x) sscanf(x,'> %f %f %f %f %f %f %f %f')',...
                     bodyBuffer(timeSelection),'UniformOutput',false));
+                
+                % Decimate epochRecords by param.samplingDecimation factor
+                totalEpochsInRINEX = size(epochRecords,1);
+                %epochRecords = epochRecords(1:param.samplingDecimation:end,:);
                 
                 % Resolving epoch flags
                 % For details see (RINEX 3.04, GNSS Observation Data File - Data Record Description)
@@ -144,7 +149,8 @@ classdef OBSRNX
                     obj.obsqi.(s) = cell(1,50);
                     obj.obsqi.(s)(:) = {repmat(' ',[noRows,noCols*2])};
                 end
-                fprintf('Totally %d epochs will be loaded.\n\n',size(obj.t,1));
+                fprintf('Totally %d of %d epochs will be loaded (using decimation factor = %d)\n\n',...
+                    size(obj.t,1),totalEpochsInRINEX,param.samplingDecimation);
                 
                 % Reading body part line by line
                 carriageReturn = 0;
@@ -313,7 +319,9 @@ classdef OBSRNX
             % the satpos(i).local coordinates to be recalculated
             for i = 1:numel(obj.satpos)
                 obj.satpos(i).localRefPoint = recposInput;
+                obj.satpos(i) = obj.satpos(i).getLocal();
             end
+            
         end
         function data = getObservation(obj,gnss,satNo,obsType,indices)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -350,10 +358,6 @@ classdef OBSRNX
             data = obj.obs.(gnss)(satIdx);
             if nargin < 5
                 indices = 1:size(data{1},1);
-            else
-                if any(~ismember(indices,1:size(data{1},1)))
-                    error('Not possible to slice because required indices are not available!')
-                end
             end
             data = data{1}(indices,obsTypeIdx);
         end
@@ -406,10 +410,6 @@ classdef OBSRNX
             data = obj.satpos(gnssIdx).local{satIdx};
             if nargin < 4
                 indices = 1:size(data,1);
-            %else
-            %    if any(~ismember(indices,1:size(data,1)))
-            %        error('Not possible to slice because required indices are not available!')
-            %    end
             end
             elevation = data(indices,1);
             azimuth = data(indices,2);
@@ -451,7 +451,9 @@ classdef OBSRNX
     
 	methods (Static)
         function obj = loadFromMAT(filepath)
+            warning('off');
             xobj = load(filepath);
+            warning('on');
             propAre1 = fieldnames(xobj.obj);
             propAre2 = fieldnames(xobj.obj.header);
             propShould1 = properties('OBSRNX');
@@ -471,10 +473,12 @@ classdef OBSRNX
         end
         function param = getDefaults()
 			param.filtergnss = 'GREC';
+            param.samplingDecimation = 1;
         end
         function param = checkParamInput(param)
             validateattributes(param,{'struct'},{'size',[1,1]},1);
             validateFieldnames(param,{'filtergnss'});
+            validateFieldnames(param,{'samplingDecimation'});
             
             % Handle filtergnss
             s = unique(param.filtergnss);
@@ -483,6 +487,15 @@ classdef OBSRNX
                 if ~ismember(s(i),'GREC')
                     error('Not implemented system "%s", only "GREC" are supported!',s(i));
                 end
+            end
+            
+            % Handle samplingInterval
+            if isnumeric(param.samplingDecimation)
+                if param.samplingDecimation < 0 || mod(param.samplingDecimation,1) ~= 0
+                    error('Input parameter "samplingDecimation" has to be positive integer value!')
+                end
+            else
+                error('Input parameter "samplingDecimation" has to be of numeric type!')
             end
         end
         function recpos = addIncrementToRecpos(oldrecpos,increment,incType)

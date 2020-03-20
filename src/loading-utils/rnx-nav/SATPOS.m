@@ -38,14 +38,10 @@ classdef SATPOS
         % SVclockCorr - satellite clock correction at given timestamps
         % which takes into account also relativistic correction (in sec.)
         SVclockCorr (1,:) cell
-    end
-    properties (Dependent)
+
         % local property contains local frame spherical coordinates of sats
         % local{i} is [N,3] matrix with: [elevation,azimuth,slant range]
         % (N is number of rows of gpstime property, units: degrees, meters)
-        %
-        % local is dependent property, what means that it will be automatically
-        % recalculated every time when localRefPoint is changed
         local (1,:) cell
     end
     
@@ -110,13 +106,13 @@ classdef SATPOS
                 end
             end
         end
-        function local = get.local(obj)
+        function obj = getLocal(obj)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Method to automatically update local property
+            % Method to re-calculate local sat position (ele,azi,r)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             for i = 1:size(obj.ECEF,2)
-                local = cell(1,numel(obj.satList));
-                local(:) = {zeros(size(obj.gpstime,1),3)};
+                obj.local = cell(1,numel(obj.satList));
+                obj.local(:) = {zeros(size(obj.gpstime,1),3)};
                 if ~isequal(obj.localRefPoint,[0 0 0])
                     ell = referenceEllipsoid('wgs84');
                     [lat0,lon0,h0] = ecef2geodetic(obj.localRefPoint(1),obj.localRefPoint(2),obj.localRefPoint(3),ell,'degrees');
@@ -126,13 +122,12 @@ classdef SATPOS
                             obj.ECEF{j}(timeSel,2),...
                             obj.ECEF{j}(timeSel,3),...
                             lat0,lon0,h0,ell);
-                        local{j}(timeSel,:) = [elev,azi,slantRange];
+                        obj.local{j}(timeSel,:) = [elev,azi,slantRange];
                     end
                 end
             end
         end
     end
-    
     methods (Static)
         function [ECEF, local, SVclockCorr] = getBroadcastPosition(satList,gpstime,brdc,localRefPoint,satTimeFlags)
             validateattributes(satList,{'double'},{'nonnegative'},1)
