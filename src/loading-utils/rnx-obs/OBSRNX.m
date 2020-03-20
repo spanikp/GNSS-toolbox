@@ -106,7 +106,16 @@ classdef OBSRNX
                 
                 % Decimate epochRecords by param.samplingDecimation factor
                 totalEpochsInRINEX = size(epochRecords,1);
-                %epochRecords = epochRecords(1:param.samplingDecimation:end,:);
+                epochAllIdxs = find(timeSelection);
+                linesToRead = [];
+                for i = 1:param.samplingDecimation:size(epochRecords,1)
+                    linesToRead = [linesToRead; (epochAllIdxs(i):epochAllIdxs(i)+epochRecords(i,8))'];
+                end
+                
+                % Remove lines from buffer and epochRecords
+                epochRecords = epochRecords(1:param.samplingDecimation:end,:);
+                bodyBuffer = bodyBuffer(linesToRead);
+                clear timeSelection;
                 
                 % Resolving epoch flags
                 % For details see (RINEX 3.04, GNSS Observation Data File - Data Record Description)
