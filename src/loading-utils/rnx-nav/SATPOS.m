@@ -98,7 +98,7 @@ classdef SATPOS
                         selSatNotPresent = ~ismember(obj.satList,eph.sat.(obj.gnss));
                         if any(selSatNotPresent)
                             notPresentSats = obj.satList(selSatNotPresent);
-                            warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
+                            warning('Following sats of %s system are not present in ephemeris: %s\n         Coordinates for these satellites will not be computed!',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
                             obj.satList = obj.satList(~selSatNotPresent);
                             obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
                         end
