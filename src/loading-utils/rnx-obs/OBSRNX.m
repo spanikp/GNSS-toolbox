@@ -218,22 +218,20 @@ classdef OBSRNX
                         %if ~isempty(find(sys == obj.gnss,1))
                         if any(obj.gnss == sys)
                             lineLength = obj.header.noObsTypes(sysidx)*16;
-                            prn = sscanf(line(2:3),'%d');
-                            %line = pad(line(4:end),lineLength); % Padding is slower than "manual" padding
-                            line = [line(4:end), repmat(' ',[1,lineLength-length(line)+3])];
-                            qi = [15:16:lineLength; 16:16:lineLength];
+                            linePrnMeas = [line(2:end) repmat(' ',[1,lineLength-length(line)+3])];
+                            qi = [17:16:lineLength; 18:16:lineLength];
                             
                             % Quality info as chars
                             if param.parseQualityIndicator
-                                obj.obsqi.(sys){1,prn}(idxt,:) = line(qi(:)');
+                                obj.obsqi.(sys){1,prn}(idxt,:) = linePrnMeas(qi(:)');
                             end
                             
                             % Erase quality flags and convert code,phase,snr to numeric values
-                            line(qi(:)') = ' ';
-                            measIsPresent = line(11:16:end) == '.';
-                            %measIsPresent = line(11:16:(lineLength-obj.header.noObsTypes(sysidx)*2)) == '.';
-                            col = sscanf(line,'%f')'; % Slower due to replace in string
-                            obj.obs.(sys){1,prn}(idxt,measIsPresent) = col;
+                            linePrnMeas(qi(:)') = ' ';
+                            measIsPresent = linePrnMeas(13:16:end) == '.';
+                            col = sscanf(linePrnMeas,'%f')'; % Slower due to replace in string
+                            prn = col(1);
+                            obj.obs.(sys){1,prn}(idxt,measIsPresent) = col(2:end);
                         end
                     end
                     
