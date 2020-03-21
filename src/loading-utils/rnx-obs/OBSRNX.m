@@ -40,6 +40,8 @@ classdef OBSRNX
         
         % obsqi s struct for quality index of observation given in obs
         % (loaded from RINEX v3, many of obs quality indices are empty)
+        % By default this is empty - will not be loaded during RINEX read
+        % use param.parseQualityIndicator = true to read these values
         obsqi
         
         % satTimeFlags is struct with matrices representing satellite/epochs
@@ -63,6 +65,7 @@ classdef OBSRNX
             if nargin == 1
 				param = OBSRNX.getDefaults();
             end
+            tic
             hdr = OBSRNXheader(filepath);
             validateattributes(hdr,{'OBSRNXheader'},{})
             param = OBSRNX.checkParamInput(param);
@@ -80,6 +83,8 @@ classdef OBSRNX
             obj.path = obj.header.path;
             obj.filename = obj.header.filename;
             obj = obj.loadRNXobservation(param);
+            tReading = toc;
+            fprintf('Elapsed time reading RINEX file "%s": %.4f seconds.\n',obj.filename,tReading);
         end
         function obj = loadRNXobservation(obj,param)
             % Check if there is something to read
@@ -98,11 +103,31 @@ classdef OBSRNX
                 clear fileBuffer;
                 obj.obs = struct();
                 
-                % Find time moments
-                fprintf('Resolving measurement''s epochs ...\n')
-                timeSelection = cellfun(@(x) strcmp(x(1),'>'), bodyBuffer);
-                epochRecords = cell2mat(cellfun(@(x) sscanf(x,'> %f %f %f %f %f %f %f %f')',...
-                    bodyBuffer(timeSelection),'UniformOutput',false));
+                % Find epoch identifiers (slow performance on big files)
+                %timeSelection = cellfun(@(x) strcmp(x(1),'>'),bodyBuffer);
+                %epochRecords = cell2mat(cellfun(@(x) sscanf(x,'> %f %f %f %f %f %f %f %f')',...
+                %   bodyBuffer(timeSelection),'UniformOutput',false));
+                
+                
+                % Find epoch identifiers (faster version)
+                tic
+                fprintf('Resolving measurement''s epochs ')
+                tmp = char(bodyBuffer);
+                timeSelection = tmp(:,1) == '>';
+                %epochStringArray = string(tmp(timeSelection,3:29));
+                %edt = datetime(epochStringArray,'InputFormat','yyyy MM dd HH mm ss.sssss');
+                epochRecords = zeros(nnz(timeSelection),8);
+                %epochRecords(:,1:6) = [edt.Year, edt.Month, edt.Day, edt.Hour, edt.Minute, edt.Second];
+                epochRecords(:,1) = str2doubleq(cellstr(tmp(timeSelection,3:6)));
+                epochRecords(:,2) = str2doubleq(cellstr(tmp(timeSelection,8:9)));
+                epochRecords(:,3) = str2doubleq(cellstr(tmp(timeSelection,11:12)));
+                epochRecords(:,4) = str2doubleq(cellstr(tmp(timeSelection,14:15)));
+                epochRecords(:,5) = str2doubleq(cellstr(tmp(timeSelection,17:18)));
+                epochRecords(:,6) = str2doubleq(cellstr(tmp(timeSelection,20:29)));
+                epochRecords(:,7) = str2doubleq(cellstr(tmp(timeSelection,32)));
+                epochRecords(:,8) = str2doubleq(cellstr(tmp(timeSelection,33:35)));
+                epochRecords = real(epochRecords);
+                fprintf('[done]\n');
                 
                 % Decimate epochRecords by param.samplingDecimation factor
                 totalEpochsInRINEX = size(epochRecords,1);
@@ -155,8 +180,12 @@ classdef OBSRNX
                     obj.obs.(s)(:) = {zeros(noRows,noCols)};
                     
                     % Quality flags as array of chars
-                    obj.obsqi.(s) = cell(1,50);
-                    obj.obsqi.(s)(:) = {repmat(' ',[noRows,noCols*2])};
+                    if param.parseQualityIndicator
+                        obj.obsqi.(s) = cell(1,50);
+                        obj.obsqi.(s)(:) = {repmat(' ',[noRows,noCols*2])};
+                    else
+                        obj.obsqi = [];
+                    end
                 end
                 fprintf('Totally %d of %d epochs will be loaded (using decimation factor = %d)\n\n',...
                     size(obj.t,1),totalEpochsInRINEX,param.samplingDecimation);
@@ -178,30 +207,33 @@ classdef OBSRNX
                         if obj.epochFlags.OK(iEpoch)
                             idxt = idxt + 1;
                             if numel(line) > 35
-                                obj.recClockOffset(idxt) = str2double(line(36:end));
+                                obj.recClockOffset(idxt) = sscanf(line(36:end),'%d');
                             end
                         else
                             nLinesToSkip = epochRecordsNumber(iEpoch);
                         end
                     else
                         sys = line(1);
-                        sysidx = find(sys == obj.header.gnss);
-                        if ~isempty(find(sys == obj.gnss,1))
-                            prn = str2double(line(2:3));
+                        sysidx = obj.header.gnss == sys;
+                        %if ~isempty(find(sys == obj.gnss,1))
+                        if any(obj.gnss == sys)
                             lineLength = obj.header.noObsTypes(sysidx)*16;
-                            line = pad(line(4:end),lineLength);
-                            qi1 = 15:16:lineLength;
-                            qi2 = 16:16:lineLength;
+                            prn = sscanf(line(2:3),'%d');
+                            %line = pad(line(4:end),lineLength); % Padding is slower than "manual" padding
+                            line = [line(4:end), repmat(' ',[1,lineLength-length(line)+3])];
+                            qi = [15:16:lineLength; 16:16:lineLength];
                             
                             % Quality info as chars
-                            colqi = line(sort([qi1, qi2]));
+                            if param.parseQualityIndicator
+                                obj.obsqi.(sys){1,prn}(idxt,:) = line(qi(:)');
+                            end
                             
                             % Erase quality flags and convert code,phase,snr to numeric values
-                            line([qi1, qi2]) = [];
-                            line(11:14:(lineLength-obj.header.noObsTypes(sysidx)*2)) = '.';
-                            col = sscanf(replace(line,' .   ','0.000'),'%f')';
-                            obj.obs.(sys){1,prn}(idxt,:) = col;
-                            obj.obsqi.(sys){1,prn}(idxt,:) = colqi;
+                            line(qi(:)') = ' ';
+                            measIsPresent = line(11:16:end) == '.';
+                            %measIsPresent = line(11:16:(lineLength-obj.header.noObsTypes(sysidx)*2)) == '.';
+                            col = sscanf(line,'%f')'; % Slower due to replace in string
+                            obj.obs.(sys){1,prn}(idxt,measIsPresent) = col;
                         end
                     end
                     
@@ -215,7 +247,7 @@ classdef OBSRNX
                         end
                     end
                 end
-                fprintf(' [done]\n');
+                fprintf('\b\b\b\b\b [done]\n');
                 
                 % Adding field to structure of available satellites in file
                 obj.sat = struct();
@@ -227,7 +259,9 @@ classdef OBSRNX
                     obj.sat.(s) = find(satSel);
                     obj.satblock.(s) = getPRNBlockNumber(obj.sat.(s),s);
                     obj.obs.(s)(~satSel) = [];
-                    obj.obsqi.(s)(~satSel) = [];
+                    if param.parseQualityIndicator
+                        obj.obsqi.(s)(~satSel) = [];
+                    end
                     obj.satTimeFlags.(s) = false(size(obj.t,1),nnz(satSel));
                     for j = 1:numel(obj.sat.(s))
                         obj.satTimeFlags.(s)(:,j) = sum(obj.obs.(s){j},2) ~= 0;
@@ -483,11 +517,13 @@ classdef OBSRNX
         function param = getDefaults()
 			param.filtergnss = 'GREC';
             param.samplingDecimation = 1;
+            param.parseQualityIndicator = false;
         end
         function param = checkParamInput(param)
             validateattributes(param,{'struct'},{'size',[1,1]},1);
             validateFieldnames(param,{'filtergnss'});
             validateFieldnames(param,{'samplingDecimation'});
+            validateFieldnames(param,{'parseQualityIndicator'});
             
             % Handle filtergnss
             s = unique(param.filtergnss);

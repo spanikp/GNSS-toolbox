@@ -30,18 +30,18 @@ classdef OBSRNXheader
 
             % Reading raw RINEX data using textscan
             fprintf('Reading header of RINEX: %s\n', absfilepath);
-            finp = fopen(absfilepath, 'r');
-            fileBuffer = textscan(finp, '%s', 'Delimiter', '\n', 'whitespace', '');
-            fileBuffer = fileBuffer{1};
-            fclose(finp);
-            
-            % Parsing header records
-            lineIndex = 0;
+            finp = fopen(absfilepath,'r');
+            %fileBuffer = textscan(finp, '%s', 'Delimiter', '\n', 'whitespace', '');
+            %fileBuffer = fileBuffer{1};
+            %fclose(finp);
             
             % Initialize rnx structure
+            lineIndex = 0;
+            sysObsTypesBuffer = {};
             while 1
                 lineIndex = lineIndex + 1;
-                line = fileBuffer{lineIndex};
+                %line = fileBuffer{lineIndex};
+                line = fgetl(finp);
                 
                 if lineIndex == 1
                     if contains(line,'RINEX VERSION / TYPE') && contains(line,'OBSERVATION DATA')
@@ -99,20 +99,7 @@ classdef OBSRNXheader
                 end
                 
                 if contains(line,'SYS / # / OBS TYPES')
-                    if ~strcmp(line(1),' ')
-                        obj.gnss(end+1) = line(1);
-                        obj.noObsTypes(end+1) = str2double(line(5:6));
-                        
-                        obsTypes = strsplit(line(8:60));
-                        obsTypes = obsTypes(1:end-1);
-                        obj.obsTypes.(line(1)) = obsTypes;
-                        
-                        if strcmp(fileBuffer{lineIndex+1}(1),' ') && contains(fileBuffer{lineIndex+1},'SYS / # / OBS TYPES')
-                            obsTypes = strsplit(fileBuffer{lineIndex+1}(8:60));
-                            obsTypes = obsTypes(1:end-1);
-                            obj.obsTypes.(line(1))(end+1:end+length(obsTypes)) = obsTypes;
-                        end
-                    end
+                    sysObsTypesBuffer = [sysObsTypesBuffer; line];
                 end
                 
                 % Breaks if lineIndex reaches 'END OF HEADER'
@@ -121,7 +108,9 @@ classdef OBSRNXheader
                     break
                 end
             end
+            obj = obj.parseObsTypes(sysObsTypesBuffer);
             obj.printSummary();
+            fclose(finp);
         end
         function printSummary(obj)
             aot = strsplit(obj.antenna.offsetType,'/');
@@ -144,6 +133,29 @@ classdef OBSRNXheader
                 fprintf('RINEX %s obs types (%2d):     %s\n',s,obj.noObsTypes(i),strjoin(obj.obsTypes.(s),','));
             end
             fprintf([repmat('#',[1 80]), '\n']);
+        end
+    end
+    methods (Access = private)
+        function obj = parseObsTypes(obj,buffer)
+            for i = 1:numel(buffer)
+                line = buffer{i};
+                if ~strcmp(line(1),' ')
+                    obj.gnss(end+1) = line(1);
+                    obj.noObsTypes(end+1) = str2double(line(5:6));
+                    
+                    obsTypesTemp = strsplit(line(8:60));
+                    obsTypesTemp = obsTypesTemp(1:end-1);
+                    obj.obsTypes.(line(1)) = obsTypesTemp;
+                    
+                    if i ~= numel(buffer)
+                        if strcmp(buffer{i+1}(1),' ')
+                            obsTypesTemp = strsplit(buffer{i+1}(8:60));
+                            obsTypesTemp = obsTypesTemp(1:end-1);
+                            obj.obsTypes.(line(1))(end+1:end+length(obsTypesTemp)) = obsTypesTemp;
+                        end
+                    end
+                end
+            end
         end
     end
 end

@@ -1,6 +1,6 @@
 classdef OBSRNXtest < matlab.unittest.TestCase
     properties
-        obsrnx OBSRNX
+        obsrnx
     end
     methods (TestClassSetup)
         function setupPath(obj)
