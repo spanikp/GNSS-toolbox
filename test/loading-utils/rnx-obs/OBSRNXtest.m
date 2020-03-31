@@ -53,8 +53,8 @@ classdef OBSRNXtest < matlab.unittest.TestCase
         };
     end
     methods (TestClassSetup)
-        function setupPath(obj)
-			addpath(genpath('../../../src'));
+        function setupTest(obj)
+            addpath(genpath('../../../src'));
             obj.obsrnx = OBSRNX('../../data/JAB1080M.19o');
         end
     end
@@ -87,6 +87,41 @@ classdef OBSRNXtest < matlab.unittest.TestCase
         function testComputePrecise(obj)
             obj.obsrnx = obj.obsrnx.computeSatPosition('precise','../../data/eph');
             obj.verifyInstanceOf(obj.obsrnx.satpos,'SATPOS');
+        end
+        function testGetLocal(obj)
+            % Compute satellite positions
+            ell = referenceEllipsoid('wgs84');
+            o = obj.obsrnx;
+            o.recpos = [ell.SemimajorAxis,0,0];
+            o = o.computeSatPosition('broadcast','../../data/brdc');
+            
+            for i = 1:numel(o.gnss)
+                gnss = o.gnss(i);
+                for j = 1:numel(o.sat.(gnss))
+                    prn = o.sat.(gnss)(j);
+                    [elev,azi,r] = o.getLocal(gnss,prn);
+                    if ~isempty(elev)
+                        [x,y,z] = o.satpos(i).getECEF(prn);
+                        sel = sum([x,y,z],2) ~= 0;
+                        us = x(sel) - o.recpos(1);
+                        ns = z(sel) - o.recpos(3);
+                        es = y(sel) - o.recpos(2);
+                        elevRef = atan2d(us,sqrt(es.^2 + ns.^2));
+                        aziRef = rem(atan2d(es,ns)+360,360);
+                        rRef = sqrt(us.^2 + ns.^2 + es.^2);
+                        obj.verifyEqual(elevRef,elev(sel),'AbsTol',1e-5);
+                        obj.verifyEqual(aziRef,azi(sel),'AbsTol',1e-5);
+                        obj.verifyEqual(rRef,r(sel),'AbsTol',1e-5);
+                    end
+                end
+            end
+        end
+        function testNoLocalCoordinationComputationTriggered(obj)
+            % Compute satellite positions
+            ell = referenceEllipsoid('wgs84');
+            o = obj.obsrnx;
+            o.recpos = [0,0,ell.SemiminorAxis];
+            o = o.computeSatPosition('broadcast','../../data/brdc');
         end
     end
     methods (Test, ParameterCombination='sequential')

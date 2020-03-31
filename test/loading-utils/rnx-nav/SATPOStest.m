@@ -6,35 +6,58 @@ classdef SATPOStest < matlab.unittest.TestCase
              [ 21205.926710  11935.849328  10843.520838]*1e3,...
              [ 15869.795086 -19561.833554  -3964.297825]*1e3,...
              [ 15082.943039  13716.981791 -21463.750213]*1e3,...
-             [-23389.162333  26622.342618  22879.979580]*1e3};          
+             [-23389.162333  26622.342618  22879.979580]*1e3};
+        ephTypeAndFolder = {...
+            {'broadcast','../../data/brdc'};
+            {'precise',  '../../data/eph'}};
     end
     methods (TestClassSetup)
         function setupPath(obj)
 			addpath(genpath('../../../src'));
         end
     end
-    methods (Test)
-        function testConstructorBroadcast(obj)
-            ephType = 'broadcast';
-            ephFolder = '../../data/brdc';
+    methods (Test, ParameterCombination='exhaustive')
+        function testConstructorBasic(obj,gnss,ephTypeAndFolder)
             [GPS1w,GPS1s] = greg2gps([2019,3,21,2,15,18]);
             [GPS2w,GPS2s] = greg2gps([2019,3,21,4,15,18]);
             GPSTimeFrame = [GPS1w,GPS1s; GPS2w,GPS2s];
             [gpsWeek,gpsSecond] = getGPSTimeBetween(GPSTimeFrame,1800);
-            satpos = SATPOS('R',1,ephType,ephFolder,[gpsWeek,gpsSecond]);
-            obj.verifyEqual(satpos.ECEF{1}(1,:),[0.159713886719e+5, -0.198657680664e+5, -0.715209960938e+3]*1e3);
+            SATPOS(gnss,1,ephTypeAndFolder{1},ephTypeAndFolder{2},[gpsWeek,gpsSecond]);
         end
-    end
+    end 
     methods (Test, ParameterCombination='sequential')
-        function testConstructorPrecise(obj,gnss,ephRefSats,ephRefPos)
-            ephType = 'precise';
-            ephFolder = '../../data/eph';
+        function testPreciseWithVerify(obj,gnss,ephRefSats,ephRefPos)
             [GPS1w,GPS1s] = greg2gps([2019,3,21,2,0,0]);
             [GPS2w,GPS2s] = greg2gps([2019,3,21,4,0,0]);
             GPSTimeFrame = [GPS1w,GPS1s; GPS2w,GPS2s];
             [gpsWeek,gpsSecond] = getGPSTimeBetween(GPSTimeFrame,100);
-            satpos = SATPOS(gnss,ephRefSats,ephType,ephFolder,[gpsWeek,gpsSecond]);
-            obj.verifyEqual(satpos.ECEF{1}(1,:),ephRefPos);
+            satpos = SATPOS(gnss,ephRefSats,'precise','../../data/eph',[gpsWeek,gpsSecond]);
+            [x,y,z] = satpos.getECEF(ephRefSats);
+            obj.verifyEqual([x(1),y(1),z(1)],ephRefPos);
         end
-	end
+    end
+    methods (Test)
+        function testComputeLocal(obj)
+            ephType = 'broadcast';
+            ephFolder = '../../data/brdc';
+            [GPSweek,GPSsec] = greg2gps([2019,3,21,2,15,18]);
+            ell = referenceEllipsoid('wgs84');
+            satpos = SATPOS('G',1,ephType,ephFolder,[GPSweek,GPSsec],[ell.SemimajorAxis,0,0]);
+            us = satpos.ECEF{1}(1) - ell.SemimajorAxis;
+            ns = satpos.ECEF{1}(3);
+            es = satpos.ECEF{1}(2);
+            elevs = atan2d(us,sqrt(es.^2 + ns.^2));
+            azis = rem(atan2d(es,ns)+360,360);
+            rs = sqrt(us.^2 + ns.^2 + es.^2);
+            obj.verifyEqual(elevs,satpos.local{1}(:,1),'RelTol',1e-14);
+            obj.verifyEqual(azis,satpos.local{1}(:,2),'RelTol',1e-14);
+            obj.verifyEqual(rs,satpos.local{1}(:,3),'RelTol',1e-14);
+        end
+        function testNotComputeLocal(obj)
+            [GPSweek,GPSsec] = greg2gps([2019,3,21,2,15,18]);
+            s = SATPOS('G',[1,2,80],'broadcast','../../data/brdc',[GPSweek,GPSsec]);
+            obj.verifyEqual(s.satList,[1,2])
+            obj.verifyEmpty(s.local)
+        end
+    end
 end

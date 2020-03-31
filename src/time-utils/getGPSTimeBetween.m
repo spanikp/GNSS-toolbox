@@ -17,7 +17,7 @@ validateattributes(interval,{'scalar','numeric'},{'nonnegative'},2);
 
 % Check if day2 is after day1
 if gps2matlabtime(GPSTimeFrame(2,:)) <= gps2matlabtime(GPSTimeFrame(1,:))
-    error('Second day is before first day, please check order of time moments!')
+    error('Second moment is not after first moment, please check order!')
 end
  
 GPSWeekRel = GPSTimeFrame(2,1) - GPSTimeFrame(1,1);

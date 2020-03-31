@@ -304,7 +304,7 @@ classdef OBSRNX
             % Looping through GNSS in OBSRNX and compute satellite positions
             for i = 1:numel(obj.gnss)
                 s = obj.gnss(i);
-                localRefPoint = obj.header.approxPos;
+                localRefPoint = obj.recpos;
                 satList = obj.sat.(s);
                 satFlags = obj.satTimeFlags.(s);
                 obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags);
@@ -353,16 +353,19 @@ classdef OBSRNX
         end
         function obj = set.recpos(obj,recposInput)
             validateattributes(recposInput,{'numeric'},{'size',[1,3]},1)
-            warning('Change of receiver position:\n         from: [%.4f %.4f %.4f]\n           to: [%.4f %.4f %.4f]\n         This change triggers re-calculation of satellite local coordinates (if loaded)!',...
-                obj.recpos(1),obj.recpos(2),obj.recpos(3),recposInput(1),recposInput(2),recposInput(3))
-            obj.recpos = recposInput;
-            % Change also property satpos(i).localRefPoint what will force
-            % the satpos(i).local coordinates to be recalculated
-            for i = 1:numel(obj.satpos)
-                obj.satpos(i).localRefPoint = recposInput;
-                obj.satpos(i) = obj.satpos(i).getLocal();
+            if (recposInput(1) == 0 && recposInput(2) == 0)
+                warning('Unable to compute local coordinates for given localRefPoint! Property "localRefPoint" not set!');
+            else
+                warning('Change of receiver position:\n         from: [%.4f %.4f %.4f]\n           to: [%.4f %.4f %.4f]\n         This change triggers re-calculation of satellite local coordinates (if these are available)!',...
+                    obj.recpos(1),obj.recpos(2),obj.recpos(3),recposInput(1),recposInput(2),recposInput(3))
+                obj.recpos = recposInput;
+                
+                % Change also satpos(i).localRefPoint what will force
+                % the satpos(i).local coordinates to be recalculated
+                for i = 1:numel(obj.satpos)
+                    obj.satpos(i).localRefPoint = recposInput;
+                end
             end
-            
         end
         function data = getObservation(obj,gnss,satNo,obsType,indices)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
