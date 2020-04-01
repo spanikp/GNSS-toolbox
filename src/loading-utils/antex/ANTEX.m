@@ -35,7 +35,10 @@ classdef ANTEX
         end
         function corrVals = getCorrection(obj,gnss,freq,satpos,corrType)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Inputs:
+            % Function to interpolate phase center variation for given
+            % satellite position by [elev, azimuth] in ENU local frame.
+            %
+            % Inputs (required):
             % gnss - one of 'GREC'
             % freq - frequency identifier (according to RINEX)
             % satpos - matrix of 2 columns: [elevation, azimuth] in degrees
@@ -204,7 +207,7 @@ classdef ANTEX
                 end
                 if contains(line,'DAZI')
                     inc = str2double(line(3:10));
-                    atx.azi = 0:inc:(360-inc);
+                    atx.azi = 0:inc:360;
                 end
                 if contains(line,'ZEN1 / ZEN2 / DZEN')
                     z = sscanf(line(3:20),'%f');

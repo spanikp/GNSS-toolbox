@@ -108,25 +108,34 @@ classdef OBSRNX
                 %epochRecords = cell2mat(cellfun(@(x) sscanf(x,'> %f %f %f %f %f %f %f %f')',...
                 %   bodyBuffer(timeSelection),'UniformOutput',false));
                 
-                
                 % Find epoch identifiers (faster version)
                 tic
                 fprintf('Resolving measurement''s epochs ')
                 tmp = char(bodyBuffer);
                 timeSelection = tmp(:,1) == '>';
-                %epochStringArray = string(tmp(timeSelection,3:29));
-                %edt = datetime(epochStringArray,'InputFormat','yyyy MM dd HH mm ss.sssss');
                 epochRecords = zeros(nnz(timeSelection),8);
-                %epochRecords(:,1:6) = [edt.Year, edt.Month, edt.Day, edt.Hour, edt.Minute, edt.Second];
-                epochRecords(:,1) = str2doubleq(cellstr(tmp(timeSelection,3:6)));
-                epochRecords(:,2) = str2doubleq(cellstr(tmp(timeSelection,8:9)));
-                epochRecords(:,3) = str2doubleq(cellstr(tmp(timeSelection,11:12)));
-                epochRecords(:,4) = str2doubleq(cellstr(tmp(timeSelection,14:15)));
-                epochRecords(:,5) = str2doubleq(cellstr(tmp(timeSelection,17:18)));
-                epochRecords(:,6) = str2doubleq(cellstr(tmp(timeSelection,20:29)));
-                epochRecords(:,7) = str2doubleq(cellstr(tmp(timeSelection,32)));
-                epochRecords(:,8) = str2doubleq(cellstr(tmp(timeSelection,33:35)));
-                epochRecords = real(epochRecords);
+                if exist('str2doubleq','file') == 3
+                    fprintf('(using extern "str2doubleq") ')
+                    epochRecords(:,1) = str2doubleq(cellstr(tmp(timeSelection,3:6)));
+                    epochRecords(:,2) = str2doubleq(cellstr(tmp(timeSelection,8:9)));
+                    epochRecords(:,3) = str2doubleq(cellstr(tmp(timeSelection,11:12)));
+                    epochRecords(:,4) = str2doubleq(cellstr(tmp(timeSelection,14:15)));
+                    epochRecords(:,5) = str2doubleq(cellstr(tmp(timeSelection,17:18)));
+                    epochRecords(:,6) = str2doubleq(cellstr(tmp(timeSelection,20:29)));
+                    epochRecords(:,7) = str2doubleq(cellstr(tmp(timeSelection,32)));
+                    epochRecords(:,8) = str2doubleq(cellstr(tmp(timeSelection,33:35)));
+                    epochRecords = real(epochRecords);
+                else
+                    fprintf('(using native "str2double") ')
+                    epochRecords(:,1) = str2double(cellstr(tmp(timeSelection,3:6)));
+                    epochRecords(:,2) = str2double(cellstr(tmp(timeSelection,8:9)));
+                    epochRecords(:,3) = str2double(cellstr(tmp(timeSelection,11:12)));
+                    epochRecords(:,4) = str2double(cellstr(tmp(timeSelection,14:15)));
+                    epochRecords(:,5) = str2double(cellstr(tmp(timeSelection,17:18)));
+                    epochRecords(:,6) = str2double(cellstr(tmp(timeSelection,20:29)));
+                    epochRecords(:,7) = str2double(cellstr(tmp(timeSelection,32)));
+                    epochRecords(:,8) = str2double(cellstr(tmp(timeSelection,33:35)));
+                end
                 fprintf('[done]\n');
                 
                 % Decimate epochRecords by param.samplingDecimation factor
@@ -460,8 +469,22 @@ classdef OBSRNX
             slantRange = data(indices,3);
         end
         function obj = correctAntennaVariation(obj,antex,correctionMode)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Method to correct phase measurement accrding to antenna phase
+            % variation model stored in ANTEX file.
+            % 
+            % Note:
+            % For measurements outside of <elev,azi> domain specified in
+            % ANTEX file the measurements will be removed!
+            %
+            % Inputs:
             % antex - ANTEX object
             % correctionMode - one of 'PCV,'PCO','PCV+PCO' -> see ANTEX doc
+            %
+            % Output:
+            % Edited OBSRNX object (phase measurements changed)
+            %
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             validateattributes(antex,{'ANTEX'},{'size',[1,1]},1)
             if nargin < 3
                 correctionMode = 'PCV';
@@ -477,15 +500,19 @@ classdef OBSRNX
                     [satEle,satAzi,~] = obj.getLocal(GNSS,satNo);
                     if isempty(satEle) || isempty(satAzi)
                         warning('ANTEX %s corrections not applied for %s%02d, no satellite positions available!',correctionMode,GNSS,satNo)
-                        continue 
-                    end
-                    phaseObs = obj.obs.(GNSS){j}(:,phaseObsSel);
-                    fprintf('Compute PCV correction for %s%02d (mode: %s)\n',GNSS,satNo,correctionMode);
-                    for k = 1:nnz(phaseObsSel)
-                        if sum(phaseObs(:,k)) ~= 0
-                            measuredEpochIdxs = phaseObs(:,k) ~= 0;
-                            pcvCorr = antex.getCorrection(GNSS,phaseObsFreq(k),[satEle(measuredEpochIdxs),satAzi(measuredEpochIdxs)],correctionMode);
-                            obj.obs.(GNSS){j}(measuredEpochIdxs,phaseObsSelIdx(k)) = phaseObs(measuredEpochIdxs,k) + pcvCorr;
+                    else
+                        % Set phase observation under horizon to 0
+                        obj.obs.(GNSS){j}(satEle <= 0,phaseObsSel) = 0;
+                        
+                        % Select only phase observations
+                        phaseObs = obj.obs.(GNSS){j}(:,phaseObsSel);
+                        fprintf('Compute PCV correction for %s%02d (mode: %s)\n',GNSS,satNo,correctionMode);
+                        for k = 1:nnz(phaseObsSel)
+                            if sum(phaseObs(:,k)) ~= 0
+                                measuredEpochIdxs = phaseObs(:,k) ~= 0;
+                                pcvCorr = antex.getCorrection(GNSS,phaseObsFreq(k),[satEle(measuredEpochIdxs),satAzi(measuredEpochIdxs)],correctionMode);
+                                obj.obs.(GNSS){j}(measuredEpochIdxs,phaseObsSelIdx(k)) = phaseObs(measuredEpochIdxs,k) + pcvCorr;
+                            end
                         end
                     end
                 end

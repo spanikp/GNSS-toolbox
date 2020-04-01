@@ -1,6 +1,7 @@
 classdef OBSRNXtest < matlab.unittest.TestCase
     properties
         obsrnx
+        antex
     end
     properties (TestParameter)
         % ts - test scenarios
@@ -56,6 +57,7 @@ classdef OBSRNXtest < matlab.unittest.TestCase
         function setupTest(obj)
             addpath(genpath('../../../src'));
             obj.obsrnx = OBSRNX('../../data/JAB1080M.19o');
+            obj.antex = ANTEX('../../data/JABO_TRM55971.00_NONE_1440932194.atx');
         end
     end
     methods (Test)
@@ -88,6 +90,12 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.obsrnx = obj.obsrnx.computeSatPosition('precise','../../data/eph');
             obj.verifyInstanceOf(obj.obsrnx.satpos,'SATPOS');
         end
+        function testGetLocalNotSatposComputed(obj)
+            [elev,azi,r] = obj.obsrnx.getLocal('G',1);
+            obj.verifyEmpty(elev)
+            obj.verifyEmpty(azi)
+            obj.verifyEmpty(r)
+        end
         function testGetLocal(obj)
             % Compute satellite positions
             ell = referenceEllipsoid('wgs84');
@@ -95,6 +103,11 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             o.recpos = [ell.SemimajorAxis,0,0];
             o = o.computeSatPosition('broadcast','../../data/brdc');
             
+            % Verify that invalid satNo or GNSS throws error
+            obj.verifyError(@()o.getLocal('G',100),'MATLAB:validators:mustBeMember')
+            obj.verifyError(@()o.getLocal('X',1),'MATLAB:unrecognizedStringChoice')
+            
+            % Proper value testing
             for i = 1:numel(o.gnss)
                 gnss = o.gnss(i);
                 for j = 1:numel(o.sat.(gnss))
@@ -104,8 +117,8 @@ classdef OBSRNXtest < matlab.unittest.TestCase
                         [x,y,z] = o.satpos(i).getECEF(prn);
                         sel = sum([x,y,z],2) ~= 0;
                         us = x(sel) - o.recpos(1);
-                        ns = z(sel) - o.recpos(3);
-                        es = y(sel) - o.recpos(2);
+                        ns = z(sel);
+                        es = y(sel);
                         elevRef = atan2d(us,sqrt(es.^2 + ns.^2));
                         aziRef = rem(atan2d(es,ns)+360,360);
                         rRef = sqrt(us.^2 + ns.^2 + es.^2);
@@ -117,11 +130,50 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             end
         end
         function testNoLocalCoordinationComputationTriggered(obj)
-            % Compute satellite positions
-            ell = referenceEllipsoid('wgs84');
             o = obj.obsrnx;
-            o.recpos = [0,0,ell.SemiminorAxis];
+            hdrRecpos = o.header.approxPos;
+            o.recpos = [0,0,6378000]; % Any point on Z-axis is invalid recpos point
+            
+            % Invalid change of recpos should not change recpos property
+            obj.verifyEqual(o.recpos,hdrRecpos)
+        end
+        function testPCVCorrectionApplicationUnderHorizon(obj)
+            gnss = 'G';
+            satNo = 13;
+            obsType = 'L1C';
+            pcvCorrType = 'PCV+PCO';
+            
+            % Sample data reading
+        	o = OBSRNX('../../data/JABOtestAntennaCorrUnderHorizon.19o');
             o = o.computeSatPosition('broadcast','../../data/brdc');
+            elev = o.getLocal(gnss,satNo);
+            underHorizonSel = elev < 0;
+            
+            % Apply PCV correction on measurements
+            beforeCorr = o.getObservation(gnss,satNo,obsType);
+            o = o.correctAntennaVariation(obj.antex,'PCV+PCO');
+            afterCorr = o.getObservation(gnss,satNo,obsType);
+            
+            obj.verifyNotEqual(beforeCorr,afterCorr);
+            obj.verifyEqual(afterCorr(underHorizonSel),zeros(nnz(underHorizonSel),1))
+        end
+        function testPCVCorrectionApplication(obj)
+            gnss = 'G';
+            satNo = 12;
+            obsType = 'L1C';
+            pcvCorrType = 'PCV+PCO';
+            
+            % Sample data reading
+        	o = OBSRNX('../../data/JABOtestAntennaCorr.19o');
+            o = o.computeSatPosition('precise','../../data/eph');
+            beforeRemoval = o.getObservation(gnss,satNo,obsType);
+            [elev,azi,~] = o.getLocal(gnss,satNo);
+            
+            % Compute correction manually
+            pcvCorr = obj.antex.getCorrection(gnss,str2double(obsType(2)),[elev,azi],pcvCorrType);
+            o = o.correctAntennaVariation(obj.antex,pcvCorrType);
+            afterRemoval = o.getObservation(gnss,satNo,obsType);
+            obj.verifyEqual(afterRemoval-beforeRemoval,pcvCorr,'AbsTol',1e-5)
         end
     end
     methods (Test, ParameterCombination='sequential')
