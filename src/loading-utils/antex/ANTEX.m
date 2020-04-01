@@ -5,6 +5,8 @@ classdef ANTEX
         PCV (1,:) struct = struct('PCV',[],'PCVnoazi',[],'offsetNEU',[],'system','','freq',[])
         azi (1,:) double
         zen (1,:) double
+        aziMesh (:,:) double
+        zenMesh (:,:) double
         antennaType (1,:) char
         serialnumber (1,:) char
         valid (2,1) double = [-Inf, +Inf]
@@ -29,6 +31,73 @@ classdef ANTEX
                 else
                     obj = ANTEX.parseFromTextCells(raw);
                 end
+            end
+        end
+        function corrVals = getCorrection(obj,gnss,freq,satpos,corrType)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Function to interpolate phase center variation for given
+            % satellite position by [elev, azimuth] in ENU local frame.
+            %
+            % Inputs (required):
+            % gnss - one of 'GREC'
+            % freq - frequency identifier (according to RINEX)
+            % satpos - matrix of 2 columns: [elevation, azimuth] in degrees
+            % corrType - 'PCV','PCO','PCV+PCO'
+            %   PCV - only phase center variation is evaluated (intepolation from grid)
+            %   PCO - return effect of projection of mean phase center offset
+            %         to actual line of sight specified by satpos array
+            %   PCV+PCO - sum of previous effects
+            %           - if this corrType is used then the correction can
+            %             be used to reduce observed phase measurements from 
+            %             APC (antenna phase center) to ARP (antenna ref. point)
+            %           - such reduction can be useful for comparison
+            %             between oberved and theoretical DD 
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            
+            validateattributes(gnss,{'char'},{'size',[1,1]},1)
+            validateattributes(freq,{'numeric'},{'size',[1,1]},2)
+            validateattributes(satpos,{'numeric'},{'size',[nan,2]},3)
+            if nargin < 5
+                corrType = 'PCV';
+            end
+            validatestring(corrType,{'PCV','PCO','PCV+PCO'});
+            
+            requiredComb = sprintf('%s%d',gnss,freq);
+            availableCombs = arrayfun(@(x) sprintf('%s%d',x.system,x.freq),obj.PCV,'UniformOutput',false);
+            
+            % What combination should be used as backup, e.g. G5 -> G2,...
+            fallBackCombinations = {...
+                'G5','G2';    'R4','R1';    'R3','R2';    'R6','R2';
+                'E1','G1';    'E5','G2';    'E7','G2';    'E8','G2';
+                'E6','G2';    'C2','G1';    'C1','G1';    'C5','G2';
+                'C7','G2';    'C8','G2';    'C6','G2'};
+            
+            % Get corresponding grid from ANTEX (lookup variable)
+            if ismember(requiredComb,availableCombs)
+                lookupIdx = find([obj.PCV.system] == gnss & [obj.PCV.freq] == freq);
+            else
+                %requiredCombOld = requiredComb;
+                fallBackIdx = strcmp(requiredComb,fallBackCombinations(:,1));
+                requiredComb = fallBackCombinations{fallBackIdx,2};
+                %warning('Combination "%s" not available in ANTEX, using "%s" instead.',requiredCombOld,requiredComb)
+                lookupIdx = find([obj.PCV.system] == requiredComb(1) & [obj.PCV.freq] == str2double(requiredComb(2)));
+            end
+            lookup = obj.PCV(lookupIdx).PCV;
+
+            % Interpolation of PCV values for input satellite's positions 
+            switch corrType
+                case 'PCV'
+                    corrVals = interp2(obj.zenMesh,obj.aziMesh,lookup,90-satpos(:,1),satpos(:,2),'linear');
+                case 'PCO'
+                    unit_sat = [cosd(satpos(:,1)).*cosd(satpos(:,2)), cosd(satpos(:,1)).*sind(satpos(:,2)), sind(satpos(:,1))];
+                    PCO = obj.PCV(lookupIdx).offsetNEU;
+                    corrVals = dot(repmat(PCO',[1,size(unit_sat,1)]),unit_sat')';
+                case 'PCV+PCO'
+                    corrVal1 = interp2(obj.zenMesh,obj.aziMesh,lookup,90-satpos(:,1),satpos(:,2),'linear');
+                    unit_sat = [cosd(satpos(:,1)).*cosd(satpos(:,2)), cosd(satpos(:,1)).*sind(satpos(:,2)), sind(satpos(:,1))];
+                    PCO = obj.PCV(lookupIdx).offsetNEU;
+                    corrVal2 = dot(repmat(PCO',[1,size(unit_sat,1)]),unit_sat')';
+                    corrVals = corrVal1 + corrVal2;
             end
         end
         function plot(obj,plotType,colorbar_range)
@@ -138,7 +207,7 @@ classdef ANTEX
                 end
                 if contains(line,'DAZI')
                     inc = str2double(line(3:10));
-                    atx.azi = 0:inc:(360-inc);
+                    atx.azi = 0:inc:360;
                 end
                 if contains(line,'ZEN1 / ZEN2 / DZEN')
                     z = sscanf(line(3:20),'%f');
@@ -183,6 +252,10 @@ classdef ANTEX
                     end
                 end
             end
+            
+            % Create meshgrids
+            [atx.zenMesh,atx.aziMesh] = meshgrid(atx.zen,atx.azi);
+
         end
     end
 end
