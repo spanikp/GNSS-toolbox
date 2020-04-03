@@ -12,6 +12,10 @@ classdef OBSRNX
         % gnss specify sat system (one of 'GREC')
         gnss (1,:) char
         
+        % obsTypes struct which specify observation types (by default same as in header)
+        % number of obs types is the same as size(obs.(gnss){i},2)
+        obsTypes
+        
         % t gives moments of observation in GPS time system
         % t = [year,month,day,hour,minute,second,GPSWeek,GPSSecond,datenum]
         t (:,9) double
@@ -57,13 +61,13 @@ classdef OBSRNX
         satblock
         
         % satpos is array of SATPOS objects
-		satpos (1,:) SATPOS
-	end
-	
-	methods
-		function obj = OBSRNX(filepath,param)
+        satpos (1,:) SATPOS
+    end
+    
+    methods
+        function obj = OBSRNX(filepath,param)
             if nargin == 1
-				param = OBSRNX.getDefaults();
+                param = OBSRNX.getDefaults();
             end
             tic
             hdr = OBSRNXheader(filepath);
@@ -83,6 +87,18 @@ classdef OBSRNX
             obj.path = obj.header.path;
             obj.filename = obj.header.filename;
             obj = obj.loadRNXobservation(param);
+            
+            % Update observation types property (according what was really loaded)
+            dGnss = setdiff(char(fieldnames(obj.header.obsTypes))',obj.gnss);
+            if isempty(dGnss)
+                obj.obsTypes = obj.header.obsTypes;
+            else
+                obj.obsTypes = rmfield(obj.header.obsTypes,cellstr(dGnss'));
+            end
+            
+            % Consistency checks
+            obj.consistencyCheckObs();
+            
             tReading = toc;
             fprintf('Elapsed time reading RINEX file "%s": %.4f seconds.\n',obj.filename,tReading);
         end
@@ -128,6 +144,10 @@ classdef OBSRNX
                 satFlags = obj.satTimeFlags.(s);
                 obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags);
             end
+            
+            % Consistency checks
+            obj.consistencyCheckObs();
+            obj.consistencyCheckSatpos();
         end
         function obj = updateRecposWithIncrement(obj,increment,incType)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -262,11 +282,6 @@ classdef OBSRNX
             azimuth = data(indices,2);
             slantRange = data(indices,3);
         end
-        function tIdx = getObservationIndices(obj,tRange)
-            validateattributes(tRange,{'datetime'},{'size',[2,1]},1)
-            tt = datetime(obj.t(:,9),'ConvertFrom','datenum');
-            tIdx = tt >= tRange(1) & tt <= tRange(2);
-        end
         function obj = correctAntennaVariation(obj,antex,correctionMode)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Method to correct phase measurement accrding to antenna phase
@@ -333,6 +348,9 @@ classdef OBSRNX
                 end
             end
         end
+    end
+    methods
+        % Synchronizing functions
         function obj = harmonizeObsWithSatpos(obj)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Function used to align obs structure with satpos objects
@@ -363,7 +381,7 @@ classdef OBSRNX
                     satToRemoveFromSatpos = setdiff(obj.satpos(satposIdx).satList,commonSats);
                     
                     % Satellites removal
-                    obj = obj.removeObs(gnss_,satToRemoveFromObs);
+                    obj = obj.removeSats(gnss_,satToRemoveFromObs);
                     obj = obj.removeSatpos(gnss_,satToRemoveFromSatpos);
                 end
             end
@@ -383,6 +401,39 @@ classdef OBSRNX
             obj = obj.getTimeSelection(tCommon);
             obsrnx = obsrnx.getTimeSelection(tCommon);
         end
+    end
+    methods
+        % Removal functions/slicing functions
+        function obj = removeSats(obj,gnss_,satsToRemove)
+            observedSats = obj.sat.(gnss_);
+            removalSatsIdx = ismember(observedSats,satsToRemove);
+            keepSatsIdx = ~removalSatsIdx;
+            obj.sat.(gnss_) = obj.sat.(gnss_)(keepSatsIdx);
+            obj.obs.(gnss_) = obj.obs.(gnss_)(keepSatsIdx);
+            obj.satTimeFlags.(gnss_) = obj.satTimeFlags.(gnss_)(:,keepSatsIdx);
+            obj.satblock.(gnss_) = obj.satblock.(gnss_)(:,keepSatsIdx);
+            if ~isempty(obj.obsqi)
+                obj.obsqi.(gnss_) = obj.obsqi.(gnss_)(:,keepSatsIdx);
+            end
+            obj.consistencyCheckObs();
+        end
+        function obj = removeObsTypes(obj,gnss_,obsTypesToRemove)
+            validateattributes(gnss_,{'char'},{'scalar'},2)
+            validateattributes(obsTypesToRemove,{'cell'},{'size',[1,nan]},3)
+            
+            obsTypesAvailable = obj.obsTypes.(gnss_);
+            removalTypesIdx = ismember(obsTypesAvailable,obsTypesToRemove);
+            keepTypesIdx = ~removalTypesIdx;
+            
+            obj.obsTypes.(gnss_) = obsTypesAvailable(keepTypesIdx);
+            obj.obs.(gnss_) = cellfun(@(x) x(:,keepTypesIdx),obj.obs.(gnss_),'UniformOutput',false);
+            if ~isempty(obj.obsqi)
+                idxPlain = [1:2:2*numel(keepTypesIdx); 2:2:2*numel(keepTypesIdx)];
+                idxKeep = idxPlain(:,keepTypesIdx);
+                obj.obsqi.(gnss_) = cellfun(@(x) x(:,idxKeep(:)'), obj.obsqi.(gnss_),'UniformOutput',false);
+            end
+            obj.consistencyCheckObs();
+        end
         function obj = removeGNSSs(obj,rgnsses)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Remove required GNSS (rgnsses) from Obs and Satpos structs
@@ -400,7 +451,9 @@ classdef OBSRNX
                     obj.satTimeFlags = rmfield(obj.satTimeFlags,rgnss);
                     obj.satblock = rmfield(obj.satblock,rgnss);
                     obj.obs = rmfield(obj.obs,rgnss);
-                    obj.obsqi = rmfield(obj.obs,rgnss);
+                    if ~isempty(obj.obsqi)
+                        obj.obsqi = rmfield(obj.obs,rgnss);
+                    end
                 else
                     fprintf('OBSRNX satsys "%s" obs removal: %s not available',rgnss,rgnss);
                 end
@@ -458,6 +511,11 @@ classdef OBSRNX
             
             % Check if there are some sats with no observations and remove them
             obj = obj.removeEmptySats();
+        end
+        function tIdx = getObservationIndices(obj,tRange)
+            validateattributes(tRange,{'datetime'},{'size',[2,1]},1)
+            tt = datetime(obj.t(:,9),'ConvertFrom','datenum');
+            tIdx = tt >= tRange(1) & tt <= tRange(2);
         end
     end
     methods (Access = private)
@@ -605,15 +663,17 @@ classdef OBSRNX
                             linePrnMeas = [line(2:end) repmat(' ',[1,lineLength-length(line)+3])];
                             qi = [17:16:lineLength; 18:16:lineLength];
                             
-                            % Quality info as chars
+                            % Read Quality indicators if set in parameters (as chars)
                             if param.parseQualityIndicator
+                                qi = [17:16:length(linePrnMeas); 18:16:length(linePrnMeas)];
+                                prn = sscanf(linePrnMeas(1:2),'%f');
                                 obj.obsqi.(sys){1,prn}(idxt,:) = linePrnMeas(qi(:)');
                             end
                             
                             % Erase quality flags and convert code,phase,snr to numeric values
                             linePrnMeas(qi(:)') = ' ';
                             measIsPresent = linePrnMeas(13:16:end) == '.';
-                            col = sscanf(linePrnMeas,'%f')'; % Slower due to replace in string
+                            col = sscanf(linePrnMeas,'%f')';
                             prn = col(1);
                             obj.obs.(sys){1,prn}(idxt,measIsPresent) = col(2:end);
                         end
@@ -660,22 +720,9 @@ classdef OBSRNX
                         prnToRemove = [prnToRemove, obj.sat.(gnss_)(j)];
                     end
                 end
-                obj = obj.removeObs(gnss_,prnToRemove);
+                obj = obj.removeSats(gnss_,prnToRemove);
             end
             obj = obj.harmonizeObsWithSatpos();
-        end
-        function obj = removeObs(obj,gnss_,satsToRemove)
-            observedSats = obj.sat.(gnss_);
-            removalSatsIdx = ismember(observedSats,satsToRemove);
-            keepSatsIdx = ~removalSatsIdx;
-            obj.sat.(gnss_) = obj.sat.(gnss_)(keepSatsIdx);
-            obj.obs.(gnss_) = obj.obs.(gnss_)(keepSatsIdx);
-            obj.satTimeFlags.(gnss_) = obj.satTimeFlags.(gnss_)(:,keepSatsIdx);
-            obj.satblock.(gnss_) = obj.satblock.(gnss_)(:,keepSatsIdx);
-            if ~isempty(obj.obsqi)
-                obj.obsqi.(gnss_) = obj.obsqi.(gnss_)(:,keepSatsIdx);
-            end
-            obj.consistencyCheckObs();
         end
         function obj = removeSatpos(obj,gnss_,satsToRemove)
             satposIdx = find(arrayfun(@(x) strcmp(x.gnss,gnss_),obj.satpos));
@@ -695,21 +742,32 @@ classdef OBSRNX
             for i = 1:numel(obj.gnss)
                 gnss_ = obj.gnss(i);
                 ns = numel(obj.sat.(gnss_));
+                nt = size(obj.t,1);
+                nk = numel(obj.obsTypes.(gnss_));
                 assert(ns == size(obj.obs.(gnss_),2),'Inconsistency in "obs" struct found!')
-                assert(ns == size(obj.satTimeFlags.(gnss_),2),'Inconsistency in "obs" struct found!')
-                assert(ns == size(obj.satblock.(gnss_),2),'Inconsistency in "obs" struct found!')
+                assert(ns == size(obj.obs.(gnss_),2),'Inconsistency in "obs" struct found!')
+                assert(isequal(nk,numel(obj.obsTypes.(gnss_))),'Inconsistency in "obs" struct found!')
+                assert(isequal([nt; nk]*ones(1,ns),cell2mat(cellfun(@(x) size(x)',obj.obs.(gnss_),'UniformOutput',false))),'Inconsistency in "obs" struct found!')
+                assert(isequal([nt, ns],size(obj.satTimeFlags.(gnss_))),'Inconsistency in "obs" struct found!')
+                assert(isequal([1,ns],size(obj.satblock.(gnss_))),'Inconsistency in "obs" struct found!')
                 if ~isempty(obj.obsqi)
-                    assert(ns == 2*size(obj.obsqi.(gnss_),2),'Inconsistency in "obs" struct found!')
+                    assert(isequal([1,ns],size(obj.obsqi.(gnss_))),'Inconsistency in "obs" struct found!')
+                    assert(isequal([nt; 2*nk]*ones(1,ns),cell2mat(cellfun(@(x) size(x)',obj.obsqi.(gnss_),'UniformOutput',false))),'Inconsistency in "obs" struct found!')
                 end
             end
         end
         function consistencyCheckSatpos(obj)
+            nt = size(obj.t,1);
             for i = 1:numel(obj.satpos)
                 ns = numel(obj.satpos(i).satList);
-                assert(ns == size(obj.satpos(i).ECEF,2),'Inconsistency in "satpos" struct found!')
-                assert(ns == size(obj.satpos(i).local,2),'Inconsistency in "satpos" struct found!')
-                assert(ns == size(obj.satpos(i).satTimeFlags,2),'Inconsistency in "satpos" struct found!')
-                assert(ns == size(obj.satpos(i).SVclockCorr,2),'Inconsistency in "satpos" struct found!')
+                assert(isequal([nt,2],size(obj.satpos(i).gpstime)),'Inconsistency in "satpos" struct found!')
+                assert(isequal([1,ns],size(obj.satpos(i).ECEF)),'Inconsistency in "satpos" struct found!')
+                assert(isequal([1,ns],size(obj.satpos(i).local)),'Inconsistency in "satpos" struct found!')
+                assert(isequal([nt; 3]*ones(1,ns),cell2mat(cellfun(@(x) size(x)',obj.satpos(i).ECEF,'UniformOutput',false))),'Inconsistency in "obs" struct found!')
+                assert(isequal([nt; 3]*ones(1,ns),cell2mat(cellfun(@(x) size(x)',obj.satpos(i).local,'UniformOutput',false))),'Inconsistency in "obs" struct found!')
+                assert(isequal([nt,ns],size(obj.satpos(i).satTimeFlags)),'Inconsistency in "satpos" struct found!')
+                assert(isequal([1,ns],size(obj.satpos(i).SVclockCorr)),'Inconsistency in "satpos" struct found!')
+                assert(isequal([nt; 1]*ones(1,ns),cell2mat(cellfun(@(x) size(x)',obj.satpos(i).SVclockCorr,'UniformOutput',false))),'Inconsistency in "obs" struct found!')
             end
         end
     end
@@ -734,6 +792,10 @@ classdef OBSRNX
             s = what(folderpath);
             obj.path = s.path;
             obj.filename = [filename ext];
+            
+            % Consistency checks
+            obj.consistencyCheckObs();
+            obj.consistencyCheckSatpos();
         end
         function param = getDefaults()
 			param.filtergnss = 'GREC';

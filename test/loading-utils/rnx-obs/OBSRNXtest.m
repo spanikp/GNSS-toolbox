@@ -1,6 +1,7 @@
 classdef OBSRNXtest < matlab.unittest.TestCase
     properties
         obsrnx
+        obsrnxqi
         antex
     end
     properties (TestParameter)
@@ -52,12 +53,17 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             {'R',23,'C1C',120,21897345.828};...
             {'R',24,'C1C',120,20009300.430};...
         };
+        gnss = {'G','R','E','C'};
     end
     methods (TestClassSetup)
         function setupTest(obj)
             addpath(genpath('../../../src'));
             obj.obsrnx = OBSRNX('../../data/JAB1080M.19o');
             obj.antex = ANTEX('../../data/JABO_TRM55971.00_NONE_1440932194.atx');
+            
+            param = OBSRNX.getDefaults();
+            param.parseQualityIndicator = true;
+            obj.obsrnxqi = OBSRNX('../../data/JAB1080M.19o',param);
         end
     end
     methods (Test)
@@ -66,6 +72,10 @@ classdef OBSRNXtest < matlab.unittest.TestCase
         end
         function testHeaderParsing(obj)
             obj.verifyInstanceOf(obj.obsrnx.header,'OBSRNXheader')
+        end
+        function testObsTypesReading(obj)
+            obj.verifyEqual(fieldnames(obj.obsrnx.header.obsTypes),cellstr(('CEGIRS')'))
+            obj.verifyEqual(fieldnames(obj.obsrnx.obsTypes),cellstr(('CEGR')'))
         end
         function testUpdateRecPosDxyz(obj)
             oldRecPos = obj.obsrnx.recpos;
@@ -199,6 +209,32 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             refVal = ts{5};
             actualVal = obj.obsrnx.getObservation(ts{1},ts{2},ts{3},ts{4});
             obj.verifyEqual(refVal,actualVal);
+        end
+        function testRemoveGNSS(obj,gnss)
+            o = obj.obsrnx.removeGNSSs(gnss);
+            refVal = obj.obsrnx.gnss;
+            refVal = refVal(refVal ~= gnss);
+            obj.verifyEqual(o.gnss,refVal);
+        end
+        function testRemoveSat(obj,ts)
+            gnss_ = ts{1};
+            prn_ = ts{2};
+            satListRef = obj.obsrnx.sat.(gnss_)(obj.obsrnx.sat.(gnss_) ~= prn_);
+            o = obj.obsrnx.removeSats(gnss_,prn_);
+            obj.verifyEqual(o.sat.(gnss_),satListRef);
+            
+            oqi = obj.obsrnxqi.removeSats(gnss_,prn_);
+            obj.verifyEqual(oqi.sat.(gnss_),satListRef);
+        end
+        function testRemoveObsType(obj,ts)
+            gnss_ = ts{1};
+            obsType_ = ts{3};
+            obsTypesRef = obj.obsrnx.obsTypes.(gnss_)(cellfun(@(x) ~strcmp(x,obsType_),obj.obsrnx.obsTypes.(gnss_)));
+            o = obj.obsrnx.removeObsTypes(gnss_,{obsType_});
+            obj.verifyEqual(o.obsTypes.(gnss_),obsTypesRef);
+            
+            oqi = obj.obsrnxqi.removeObsTypes(gnss_,{obsType_});
+            obj.verifyEqual(oqi.obsTypes.(gnss_),obsTypesRef);
         end
     end
 end
