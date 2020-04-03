@@ -86,6 +86,381 @@ classdef OBSRNX
             tReading = toc;
             fprintf('Elapsed time reading RINEX file "%s": %.4f seconds.\n',obj.filename,tReading);
         end
+        function obj = computeSatPosition(obj,ephType,ephFolder)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % 
+            % Compute satellite positions for observed satellites
+            %
+            % Method will download required ephemeris files if path to
+            % existing ephemeris files is not provided (via ephFolder input
+            % variable).
+            % 
+            % Input (required):
+            % ephType - type of ephemeris used for calculation, can be:
+            %     * precise - precise ephemeris in SP3 format
+            %               - default analysis center is CODE
+            %     * broadcast - navigation RINEX files in version > 3.02
+            %
+            % Input (optional):
+            % ephFolder - relative or absolute path to folder with
+            %     ephemeris files (default path is where the RINEX is)
+            %   
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            
+            validateattributes(ephType,{'char'},{},2)
+            mustBeMember(ephType,{'broadcast','precise'})
+            if nargin == 2
+            	switch ephType
+                    case 'broadcast'
+                        f = 'brdc';
+                    case 'precise'
+                        f = 'eph';
+            	end
+                ephFolder = fullfile(obj.path,f);
+            end
+            validateattributes(ephFolder,{'char'},{},3)
+
+            % Looping through GNSS in OBSRNX and compute satellite positions
+            for i = 1:numel(obj.gnss)
+                s = obj.gnss(i);
+                localRefPoint = obj.recpos;
+                satList = obj.sat.(s);
+                satFlags = obj.satTimeFlags.(s);
+                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags);
+            end
+        end
+        function obj = updateRecposWithIncrement(obj,increment,incType)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Method will update recpos property with incrementing value
+            % defined by "increment" variable. Increment can be given in
+            % global ECEF or local ENU frame. Specification of the
+            % increment frame is given in "incType".
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            validateattributes(increment,{'numeric'},{'size',[1,3]},1)
+            validateattributes(incType,{'char'},{},2)
+            mustBeMember(incType,{'dxyz','denu'})
+            
+            % Update of the recpos property will trigger update of
+            % satpos.local coordinates
+            obj.recpos = OBSRNX.addIncrementToRecpos(obj.recpos,increment,incType);
+        end
+        function saveToMAT(obj,outMatFullFileName)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Store OBSRNX object to MAT file
+            % outMatFullFileName
+            %   - full path to output MAT file
+            %	- can be with or withou extension
+            %	- if other extension than *.mat given, warning is called 
+            %     and etension is forced to be *.mat
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            if nargin == 1
+                [~,filenameOut,~] = fileparts(fullfile(obj.path, obj.filename));
+                outMatFileName = [filenameOut '.mat'];
+                outMatFullFileName = fullfile(obj.path, outMatFileName);
+            end
+            [outPath,outFileName,outExtension] = fileparts(outMatFullFileName);
+            if strcmp(outExtension,'.mat')
+                outMatFileName = [outFileName, outExtension];
+            else
+                warning('Output file extension changed from *%s to *.mat!',outExtension);
+                outMatFileName = [outFileName, '.mat'];
+                outMatFullFileName = fullfile(outPath, outMatFileName);
+            end
+            fprintf('Saving RINEX "%s" to "%s" ...',obj.filename,outMatFileName);
+            save(outMatFullFileName,'obj');
+            fprintf(' [done]\n')
+        end
+        function data = getObservation(obj,gnss,satNo,obsType,indices)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % 
+            % Get satellite observation from loaded RINEX:
+            % 
+            % Input (required):
+            % gnss - satellite system identifier (one of 'GREC')
+            % satNo - satellite number
+            % obsType - observation identifier
+            % 
+            % Input (optional)
+            % indices - specify indices which you want to select
+            % 
+            % Output:
+            % data - observation data
+            %      - no unit conversion performed, data provided as stored
+            %        in RINEX (see RINEX Version 3.04 Appendix A8):
+            %        * pseudorange - in meters
+            %        * carrier-phase - in cycles
+            %        * doppler - in Hz
+            %        * SNR - mostly in DB-HZ
+            %
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            validateattributes(gnss,{'char'},{'nonempty'},1);
+            validatestring(gnss,split(obj.gnss,''));
+            validateattributes(satNo,{'double'},{'scalar','positive'},2);
+            mustBeMember(satNo,obj.sat.(gnss))
+            validateattributes(obsType,{'char'},{'size',[1,3]},3);
+            validatestring(obsType,obj.header.obsTypes.(gnss));
+            
+            satIdx = obj.sat.(gnss) == satNo;
+            obsTypeIdx = strcmp(obsType,obj.header.obsTypes.(gnss));
+            data = obj.obs.(gnss)(satIdx);
+            if nargin < 5
+                indices = 1:size(data{1},1);
+            end
+            data = data{1}(indices,obsTypeIdx);
+        end
+        function [elevation,azimuth,slantRange] = getLocal(obj,gnss,satNo,indices)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % 
+            % Get satellite local coordinates:
+            % 
+            % Input (required):
+            % gnss - satellite system identifier (one of 'GREC')
+            % satNo - satellite number
+            % 
+            % Input (optional):
+            % indices - specify indices which you want to select
+            % 
+            % Output:
+            % elevation - elevation of satellite in deg
+            % azimuth - azimuth of satellite in def
+            % slantRange - slant range in meters between obsrnx.recpos 
+            %       (default taken from RINEX) and reference point on the 
+            %       satellite which can be:
+            %         * APC (antenna phase center) for BROADCAST ephemeris
+            %         * COM (center of mass) for PRECISE ephemeris
+            %
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+            % Checkif satellite positions are available
+            if isempty(obj.satpos)
+                elevation = []; azimuth = []; slantRange =[];
+                warning('No satellite positions available! Please use method "computeSatPosition"...')
+                return
+            end
+            
+            % Verify inputs
+            validateattributes(gnss,{'char'},{'nonempty'},1);
+            validatestring(gnss,split(obj.gnss,''));
+            validateattributes(satNo,{'double'},{'scalar','positive'},2);
+            mustBeMember(satNo,obj.sat.(gnss))
+            
+            gnssIdx = find([obj.satpos.gnss] == gnss);
+            satIdx = obj.satpos(gnssIdx).satList == satNo;
+            
+            % Return empty arrays if there is no data for given satellite 
+            % (can happen if there are observation, but not ephemeris data)
+            if nnz(satIdx) == 0
+                warning('For satellite %s%02d there are no ECEF coordinates available!',gnss,satNo)
+                elevation = []; azimuth = []; slantRange = [];
+                return 
+            end
+            data = obj.satpos(gnssIdx).local{satIdx};
+            if nargin < 4
+                indices = 1:size(data,1);
+            end
+            elevation = data(indices,1);
+            azimuth = data(indices,2);
+            slantRange = data(indices,3);
+        end
+        function tIdx = getObservationIndices(obj,tRange)
+            validateattributes(tRange,{'datetime'},{'size',[2,1]},1)
+            tt = datetime(obj.t(:,9),'ConvertFrom','datenum');
+            tIdx = tt >= tRange(1) & tt <= tRange(2);
+        end
+        function obj = correctAntennaVariation(obj,antex,correctionMode)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Method to correct phase measurement accrding to antenna phase
+            % variation model stored in ANTEX file.
+            % 
+            % Note:
+            % For measurements outside of <elev,azi> domain specified in
+            % ANTEX file the measurements will be removed!
+            %
+            % Inputs:
+            % antex - ANTEX object
+            % correctionMode - one of 'PCV,'PCO','PCV+PCO' -> see ANTEX doc
+            %
+            % Output:
+            % Edited OBSRNX object (phase measurements changed)
+            %
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            validateattributes(antex,{'ANTEX'},{'size',[1,1]},1)
+            if nargin < 3
+                correctionMode = 'PCV';
+            end
+            
+            for i = 1:numel(obj.gnss)
+                GNSS = obj.gnss(i);
+                phaseObsSel = cellfun(@(x) contains(x,'L'), obj.header.obsTypes.(GNSS));
+                phaseObsSelIdx = find(phaseObsSel);
+                phaseObsFreq = cellfun(@(x) str2double(x(2)), obj.header.obsTypes.(GNSS)(phaseObsSel));
+                for j = 1:numel(obj.obs.(GNSS))
+                    satNo = obj.sat.(GNSS)(j);
+                    [satEle,satAzi,~] = obj.getLocal(GNSS,satNo);
+                    if isempty(satEle) || isempty(satAzi)
+                        warning('ANTEX %s corrections not applied for %s%02d, no satellite positions available!',correctionMode,GNSS,satNo)
+                    else
+                        % Set phase observation under horizon to 0
+                        obj.obs.(GNSS){j}(satEle <= 0,phaseObsSel) = 0;
+                        
+                        % Select only phase observations
+                        phaseObs = obj.obs.(GNSS){j}(:,phaseObsSel);
+                        fprintf('Compute PCV correction for %s%02d (mode: %s)\n',GNSS,satNo,correctionMode);
+                        for k = 1:nnz(phaseObsSel)
+                            if sum(phaseObs(:,k)) ~= 0
+                                measuredEpochIdxs = phaseObs(:,k) ~= 0;
+                                pcvCorr = antex.getCorrection(GNSS,phaseObsFreq(k),[satEle(measuredEpochIdxs),satAzi(measuredEpochIdxs)],correctionMode);
+                                obj.obs.(GNSS){j}(measuredEpochIdxs,phaseObsSelIdx(k)) = phaseObs(measuredEpochIdxs,k) + pcvCorr;
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        function obj = set.recpos(obj,recposInput)
+            validateattributes(recposInput,{'numeric'},{'size',[1,3]},1)
+            if (recposInput(1) == 0 && recposInput(2) == 0)
+                warning('Unable to compute local coordinates for given localRefPoint! Property "localRefPoint" not set!');
+            else
+                warning('Change of receiver position:\n         from: [%.4f %.4f %.4f]\n           to: [%.4f %.4f %.4f]\n         This change triggers re-calculation of satellite local coordinates (if these are available)!',...
+                    obj.recpos(1),obj.recpos(2),obj.recpos(3),recposInput(1),recposInput(2),recposInput(3))
+                obj.recpos = recposInput;
+                
+                % Change also satpos(i).localRefPoint what will force
+                % the satpos(i).local coordinates to be recalculated
+                for i = 1:numel(obj.satpos)
+                    obj.satpos(i).localRefPoint = recposInput;
+                end
+            end
+        end
+        function obj = harmonizeObsWithSatpos(obj)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Function used to align obs structure with satpos objects
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            obsGnsses = obj.gnss;
+            satposGnsses = arrayfun(@(x) x.gnss,obj.satpos);
+            bothGnss = intersect(obsGnsses,satposGnsses);
+            
+            % Remove obs and satpos of systems which are not in both
+            removeGnsses = setdiff(obsGnsses,bothGnss);
+            for i = 1:numel(removeGnsses)
+                obj = obj.removeGNSSs(removeGnsses(i));
+            end
+            
+            % Harmonize obs struct with satpos struct
+            for i = 1:numel(bothGnss)
+                gnss_ = bothGnss(i);
+                satposIdx = find(arrayfun(@(x) strcmp(x.gnss,gnss_),obj.satpos));
+                
+                % Check if sat ids are the same for obs and satpos structs -> then nothing has to be changed
+                if isequal(obj.sat.(gnss_),obj.satpos(satposIdx).satList)
+                    obj.consistencyCheckObs();
+                    obj.consistencyCheckSatpos();
+                else
+                    % Find common satellites for obs and satpos and find which to remove from each
+                    commonSats = intersect(obj.sat.(gnss_),obj.satpos(satposIdx).satList);
+                    satToRemoveFromObs = setdiff(obj.sat.(gnss_),commonSats);
+                    satToRemoveFromSatpos = setdiff(obj.satpos(satposIdx).satList,commonSats);
+                    
+                    % Satellites removal
+                    obj = obj.removeObs(gnss_,satToRemoveFromObs);
+                    obj = obj.removeSatpos(gnss_,satToRemoveFromSatpos);
+                end
+            end
+        end
+        function [obj, obsrnx] = harmonizeWith(obj,obsrnx)
+            validateattributes(obsrnx,{'OBSRNX'},{'scalar'},2)
+            commonGNSS = intersect(obj.gnss,obsrnx.gnss);
+            obj = obj.keepGNSSs(commonGNSS);
+            obj = obj.harmonizeObsWithSatpos();
+            obsrnx = obsrnx.keepGNSSs(commonGNSS);
+            obsrnx = obsrnx.harmonizeObsWithSatpos();
+            
+            % Get common time for both receivers and make cut
+            tBase = datetime(obj.t(:,end),'ConvertFrom','datenum');
+            tRover = datetime(obsrnx.t(:,end),'ConvertFrom','datenum');
+            tCommon = intersect(tBase,tRover);
+            obj = obj.getTimeSelection(tCommon);
+            obsrnx = obsrnx.getTimeSelection(tCommon);
+        end
+        function obj = removeGNSSs(obj,rgnsses)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Remove required GNSS (rgnsses) from Obs and Satpos structs
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            validateattributes(rgnsses,{'char'},{'size',[1,nan]},2)
+            for i = 1:numel(rgnsses)
+                rgnss = rgnsses(i);
+                
+                % Remove rgnss from obs struct
+                remObsSel = obj.gnss == rgnss;
+                if any(remObsSel)
+                    fprintf('OBSRNX satsys "%s" obs removal: %s -> %s',rgnss,obj.gnss,obj.gnss(~remObsSel));
+                    obj.gnss(obj.gnss == rgnss) = '';
+                    obj.sat = rmfield(obj.sat,rgnss);
+                    obj.satTimeFlags = rmfield(obj.satTimeFlags,rgnss);
+                    obj.satblock = rmfield(obj.satblock,rgnss);
+                    obj.obs = rmfield(obj.obs,rgnss);
+                    obj.obsqi = rmfield(obj.obs,rgnss);
+                else
+                    fprintf('OBSRNX satsys "%s" obs removal: %s not available',rgnss,rgnss);
+                end
+                
+                % Remove rgnss from satpos
+                if ~isempty(obj.satpos)
+                    satposGnsses = cellfun(@(x) x.gnss,obj.satpos);
+                    remSatposSel = satposGnsses == rgnss;
+                    if any(remSatposSel)
+                        fprintf('OBSRNX satsys "%s" satpos removal: %s -> %s',rgnss,satposGnsses,satposGnsses(~remSatposSel));
+                        obj.satpos = obj.satpos(~remSatposSel);
+                    else
+                        fprintf('OBSRNX satsys "%s" satpos removal: %s not available',rgnss,rgnss);
+                    end
+                end
+            end
+        end
+        function obj = keepGNSSs(obj,keepGnsses)
+            rgnsses = setdiff(obj.gnss,intersect(obj.gnss,keepGnsses));
+            for i = 1:numel(rgnsses)
+                obj = obj.removeGNSSs(rgnsses(i));
+            end
+        end
+        function obj = getTimeSelection(obj,datetimeArray)
+            assert(size(datetimeArray,2) == 1 & isa(datetimeArray,'datetime'),'Input "datetimeArray" has to be column vector of type "datetime"!')
+            tCurrent = datetime(obj.t(:,9),'ConvertFrom','datenum');
+            [~,selt] = intersect(tCurrent,datetimeArray);
+            
+            % Time selection for time/epoch objects
+            obj.t = obj.t(selt,:);
+            epFlags = fieldnames(obj.epochFlags);
+            for i = 1:numel(epFlags)
+                fn = epFlags{i};
+                obj.epochFlags.(fn) = obj.epochFlags.(fn)(selt);
+            end
+            obj.recClockOffset = obj.recClockOffset(selt);
+
+            % Time selection for observation objects
+            for i = 1:numel(obj.gnss)
+                obj.obs.(obj.gnss(i)) = cellfun(@(x) x(selt,:), obj.obs.(obj.gnss(i)),'UniformOutput',false);
+                obj.satTimeFlags.(obj.gnss(i)) = obj.satTimeFlags.(obj.gnss(i))(selt,:);
+                if ~isempty(obj.obsqi)
+                    obj.obsqi.(obj.gnss(i)) = cellfun(@(x) x(selt,:), obj.obsqi.(obj.gnss(i)),'UniformOutput',false);
+                end
+            end
+            
+            % Time selection for satpos objects
+            for i = 1:numel(obj.satpos)
+                obj.satpos(i).gpstime = obj.satpos(i).gpstime(selt,:);
+                obj.satpos(i).ECEF = cellfun(@(x) x(selt,:), obj.satpos(i).ECEF,'UniformOutput',false);
+                obj.satpos(i).local = cellfun(@(x) x(selt,:), obj.satpos(i).local,'UniformOutput',false);
+                obj.satpos(i).SVclockCorr = cellfun(@(x) x(selt,:), obj.satpos(i).SVclockCorr,'UniformOutput',false);
+                obj.satpos(i).satTimeFlags = obj.satpos(i).satTimeFlags(selt,:);
+            end
+            
+            % Check if there are some sats with no observations and remove them
+            obj = obj.removeEmptySats();
+        end
+    end
+    methods (Access = private)
         function obj = loadRNXobservation(obj,param)
             % Check if there is something to read
             obj.gnss = intersect(obj.header.gnss,param.filtergnss);
@@ -276,250 +651,68 @@ classdef OBSRNX
                 end
             end
         end
-        function obj = computeSatPosition(obj,ephType,ephFolder)
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % 
-            % Compute satellite positions for observed satellites
-            %
-            % Method will download required ephemeris files if path to
-            % existing ephemeris files is not provided (via ephFolder input
-            % variable).
-            % 
-            % Input (required):
-            % ephType - type of ephemeris used for calculation, can be:
-            %     * precise - precise ephemeris in SP3 format
-            %               - default analysis center is CODE
-            %     * broadcast - navigation RINEX files in version > 3.02
-            %
-            % Input (optional):
-            % ephFolder - relative or absolute path to folder with
-            %     ephemeris files (default path is where the RINEX is)
-            %   
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            
-            validateattributes(ephType,{'char'},{},2)
-            mustBeMember(ephType,{'broadcast','precise'})
-            if nargin == 2
-            	switch ephType
-                    case 'broadcast'
-                        f = 'brdc';
-                    case 'precise'
-                        f = 'eph';
-            	end
-                ephFolder = fullfile(obj.path,f);
-            end
-            validateattributes(ephFolder,{'char'},{},3)
-
-            % Looping through GNSS in OBSRNX and compute satellite positions
+        function obj = removeEmptySats(obj)
             for i = 1:numel(obj.gnss)
-                s = obj.gnss(i);
-                localRefPoint = obj.recpos;
-                satList = obj.sat.(s);
-                satFlags = obj.satTimeFlags.(s);
-                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags);
-            end
-        end
-        function obj = updateRecposWithIncrement(obj,increment,incType)
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Method will update recpos property with incrementing value
-            % defined by "increment" variable. Increment can be given in
-            % global ECEF or local ENU frame. Specification of the
-            % increment frame is given in "incType".
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            validateattributes(increment,{'numeric'},{'size',[1,3]},1)
-            validateattributes(incType,{'char'},{},2)
-            mustBeMember(incType,{'dxyz','denu'})
-            
-            % Update of the recpos property will trigger update of
-            % satpos.local coordinates
-            obj.recpos = OBSRNX.addIncrementToRecpos(obj.recpos,increment,incType);
-        end
-        function saveToMAT(obj,outMatFullFileName)
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Store OBSRNX object to MAT file
-            % outMatFullFileName
-            %   - full path to output MAT file
-            %	- can be with or withou extension
-            %	- if other extension than *.mat given, warning is called 
-            %     and etension is forced to be *.mat
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            if nargin == 1
-                [~,filenameOut,~] = fileparts(fullfile(obj.path, obj.filename));
-                outMatFileName = [filenameOut '.mat'];
-                outMatFullFileName = fullfile(obj.path, outMatFileName);
-            end
-            [outPath,outFileName,outExtension] = fileparts(outMatFullFileName);
-            if strcmp(outExtension,'.mat')
-                outMatFileName = [outFileName, outExtension];
-            else
-                warning('Output file extension changed from *%s to *.mat!',outExtension);
-                outMatFileName = [outFileName, '.mat'];
-                outMatFullFileName = fullfile(outPath, outMatFileName);
-            end
-            fprintf('Saving RINEX "%s" to "%s" ...',obj.filename,outMatFileName);
-            save(outMatFullFileName,'obj');
-            fprintf(' [done]\n')
-        end
-        function obj = set.recpos(obj,recposInput)
-            validateattributes(recposInput,{'numeric'},{'size',[1,3]},1)
-            if (recposInput(1) == 0 && recposInput(2) == 0)
-                warning('Unable to compute local coordinates for given localRefPoint! Property "localRefPoint" not set!');
-            else
-                warning('Change of receiver position:\n         from: [%.4f %.4f %.4f]\n           to: [%.4f %.4f %.4f]\n         This change triggers re-calculation of satellite local coordinates (if these are available)!',...
-                    obj.recpos(1),obj.recpos(2),obj.recpos(3),recposInput(1),recposInput(2),recposInput(3))
-                obj.recpos = recposInput;
-                
-                % Change also satpos(i).localRefPoint what will force
-                % the satpos(i).local coordinates to be recalculated
-                for i = 1:numel(obj.satpos)
-                    obj.satpos(i).localRefPoint = recposInput;
-                end
-            end
-        end
-        function data = getObservation(obj,gnss,satNo,obsType,indices)
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % 
-            % Get satellite observation from loaded RINEX:
-            % 
-            % Input (required):
-            % gnss - satellite system identifier (one of 'GREC')
-            % satNo - satellite number
-            % obsType - observation identifier
-            % 
-            % Input (optional)
-            % indices - specify indices which you want to select
-            % 
-            % Output:
-            % data - observation data
-            %      - no unit conversion performed, data provided as stored
-            %        in RINEX (see RINEX Version 3.04 Appendix A8):
-            %        * pseudorange - in meters
-            %        * carrier-phase - in cycles
-            %        * doppler - in Hz
-            %        * SNR - mostly in DB-HZ
-            %
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            validateattributes(gnss,{'char'},{'nonempty'},1);
-            validatestring(gnss,split(obj.gnss,''));
-            validateattributes(satNo,{'double'},{'scalar','positive'},2);
-            mustBeMember(satNo,obj.sat.(gnss))
-            validateattributes(obsType,{'char'},{'size',[1,3]},3);
-            validatestring(obsType,obj.header.obsTypes.(gnss));
-            
-            satIdx = obj.sat.(gnss) == satNo;
-            obsTypeIdx = strcmp(obsType,obj.header.obsTypes.(gnss));
-            data = obj.obs.(gnss)(satIdx);
-            if nargin < 5
-                indices = 1:size(data{1},1);
-            end
-            data = data{1}(indices,obsTypeIdx);
-        end
-        function [elevation,azimuth,slantRange] = getLocal(obj,gnss,satNo,indices)
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % 
-            % Get satellite local coordinates:
-            % 
-            % Input (required):
-            % gnss - satellite system identifier (one of 'GREC')
-            % satNo - satellite number
-            % 
-            % Input (optional):
-            % indices - specify indices which you want to select
-            % 
-            % Output:
-            % elevation - elevation of satellite in deg
-            % azimuth - azimuth of satellite in def
-            % slantRange - slant range in meters between obsrnx.recpos 
-            %       (default taken from RINEX) and reference point on the 
-            %       satellite which can be:
-            %         * APC (antenna phase center) for BROADCAST ephemeris
-            %         * COM (center of mass) for PRECISE ephemeris
-            %
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-            % Checkif satellite positions are available
-            if isempty(obj.satpos)
-                elevation = []; azimuth = []; slantRange =[];
-                warning('No satellite positions available! Please use method "computeSatPosition"...')
-                return
-            end
-            
-            % Verify inputs
-            validateattributes(gnss,{'char'},{'nonempty'},1);
-            validatestring(gnss,split(obj.gnss,''));
-            validateattributes(satNo,{'double'},{'scalar','positive'},2);
-            mustBeMember(satNo,obj.sat.(gnss))
-            
-            gnssIdx = find([obj.satpos.gnss] == gnss);
-            satIdx = obj.satpos(gnssIdx).satList == satNo;
-            
-            % Return empty arrays if there is no data for given satellite 
-            % (can happen if there are observation, but not ephemeris data)
-            if nnz(satIdx) == 0
-                warning('For satellite %s%02d there are no ECEF coordinates available!',gnss,satNo)
-                elevation = []; azimuth = []; slantRange = [];
-                return 
-            end
-            data = obj.satpos(gnssIdx).local{satIdx};
-            if nargin < 4
-                indices = 1:size(data,1);
-            end
-            elevation = data(indices,1);
-            azimuth = data(indices,2);
-            slantRange = data(indices,3);
-        end
-        function obj = correctAntennaVariation(obj,antex,correctionMode)
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Method to correct phase measurement accrding to antenna phase
-            % variation model stored in ANTEX file.
-            % 
-            % Note:
-            % For measurements outside of <elev,azi> domain specified in
-            % ANTEX file the measurements will be removed!
-            %
-            % Inputs:
-            % antex - ANTEX object
-            % correctionMode - one of 'PCV,'PCO','PCV+PCO' -> see ANTEX doc
-            %
-            % Output:
-            % Edited OBSRNX object (phase measurements changed)
-            %
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            validateattributes(antex,{'ANTEX'},{'size',[1,1]},1)
-            if nargin < 3
-                correctionMode = 'PCV';
-            end
-            
-            for i = 1:numel(obj.gnss)
-                GNSS = obj.gnss(i);
-                phaseObsSel = cellfun(@(x) contains(x,'L'), obj.header.obsTypes.(GNSS));
-                phaseObsSelIdx = find(phaseObsSel);
-                phaseObsFreq = cellfun(@(x) str2double(x(2)), obj.header.obsTypes.(GNSS)(phaseObsSel));
-                for j = 1:numel(obj.obs.(GNSS))
-                    satNo = obj.sat.(GNSS)(j);
-                    [satEle,satAzi,~] = obj.getLocal(GNSS,satNo);
-                    if isempty(satEle) || isempty(satAzi)
-                        warning('ANTEX %s corrections not applied for %s%02d, no satellite positions available!',correctionMode,GNSS,satNo)
-                    else
-                        % Set phase observation under horizon to 0
-                        obj.obs.(GNSS){j}(satEle <= 0,phaseObsSel) = 0;
-                        
-                        % Select only phase observations
-                        phaseObs = obj.obs.(GNSS){j}(:,phaseObsSel);
-                        fprintf('Compute PCV correction for %s%02d (mode: %s)\n',GNSS,satNo,correctionMode);
-                        for k = 1:nnz(phaseObsSel)
-                            if sum(phaseObs(:,k)) ~= 0
-                                measuredEpochIdxs = phaseObs(:,k) ~= 0;
-                                pcvCorr = antex.getCorrection(GNSS,phaseObsFreq(k),[satEle(measuredEpochIdxs),satAzi(measuredEpochIdxs)],correctionMode);
-                                obj.obs.(GNSS){j}(measuredEpochIdxs,phaseObsSelIdx(k)) = phaseObs(measuredEpochIdxs,k) + pcvCorr;
-                            end
-                        end
+                gnss_ = obj.gnss(i);
+                prnToRemove = []; 
+                for j = 1:numel(obj.sat.(gnss_))
+                    if sum(sum(obj.obs.(gnss_){j})) == 0
+                        prnToRemove = [prnToRemove, obj.sat.(gnss_)(j)];
                     end
                 end
+                obj = obj.removeObs(gnss_,prnToRemove);
+            end
+            obj = obj.harmonizeObsWithSatpos();
+        end
+        function obj = removeObs(obj,gnss_,satsToRemove)
+            observedSats = obj.sat.(gnss_);
+            removalSatsIdx = ismember(observedSats,satsToRemove);
+            keepSatsIdx = ~removalSatsIdx;
+            obj.sat.(gnss_) = obj.sat.(gnss_)(keepSatsIdx);
+            obj.obs.(gnss_) = obj.obs.(gnss_)(keepSatsIdx);
+            obj.satTimeFlags.(gnss_) = obj.satTimeFlags.(gnss_)(:,keepSatsIdx);
+            obj.satblock.(gnss_) = obj.satblock.(gnss_)(:,keepSatsIdx);
+            if ~isempty(obj.obsqi)
+                obj.obsqi.(gnss_) = obj.obsqi.(gnss_)(:,keepSatsIdx);
+            end
+            obj.consistencyCheckObs();
+        end
+        function obj = removeSatpos(obj,gnss_,satsToRemove)
+            satposIdx = find(arrayfun(@(x) strcmp(x.gnss,gnss_),obj.satpos));
+            if ~isempty(satposIdx)
+                observedSats = obj.satpos(satposIdx).satList;
+                removalSatsIdx = ismember(observedSats,satsToRemove);
+                keepSatsIdx = ~removalSatsIdx;
+                obj.satpos(satposIdx).satList = obj.satpos(satposIdx).satList(keepSatsIdx);
+                obj.satpos(satposIdx).ECEF = obj.satpos(satposIdx).ECEF(keepSatsIdx);
+                obj.satpos(satposIdx).local = obj.satpos(satposIdx).local(keepSatsIdx);
+                obj.satpos(satposIdx).satTimeFlags = obj.satpos(satposIdx).satTimeFlags(:,keepSatsIdx);
+                obj.satpos(satposIdx).SVclockCorr = obj.satpos(satposIdx).SVclockCorr(keepSatsIdx);
+            end
+            obj.consistencyCheckSatpos();
+        end
+        function consistencyCheckObs(obj)
+            for i = 1:numel(obj.gnss)
+                gnss_ = obj.gnss(i);
+                ns = numel(obj.sat.(gnss_));
+                assert(ns == size(obj.obs.(gnss_),2),'Inconsistency in "obs" struct found!')
+                assert(ns == size(obj.satTimeFlags.(gnss_),2),'Inconsistency in "obs" struct found!')
+                assert(ns == size(obj.satblock.(gnss_),2),'Inconsistency in "obs" struct found!')
+                if ~isempty(obj.obsqi)
+                    assert(ns == 2*size(obj.obsqi.(gnss_),2),'Inconsistency in "obs" struct found!')
+                end
+            end
+        end
+        function consistencyCheckSatpos(obj)
+            for i = 1:numel(obj.satpos)
+                ns = numel(obj.satpos(i).satList);
+                assert(ns == size(obj.satpos(i).ECEF,2),'Inconsistency in "satpos" struct found!')
+                assert(ns == size(obj.satpos(i).local,2),'Inconsistency in "satpos" struct found!')
+                assert(ns == size(obj.satpos(i).satTimeFlags,2),'Inconsistency in "satpos" struct found!')
+                assert(ns == size(obj.satpos(i).SVclockCorr,2),'Inconsistency in "satpos" struct found!')
             end
         end
     end
-    
 	methods (Static)
         function obj = loadFromMAT(filepath)
             warning('off');

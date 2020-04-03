@@ -175,6 +175,24 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             afterRemoval = o.getObservation(gnss,satNo,obsType);
             obj.verifyEqual(afterRemoval-beforeRemoval,pcvCorr,'AbsTol',1e-5)
         end
+        function testSaveToMAT(obj)
+            o = OBSRNX('../../data/JABOtestAntennaCorrUnderHorizon.19o');
+            o.recpos = [100,100,100];
+            o = o.computeSatPosition('broadcast','../../data/brdc');
+            o.saveToMAT('temp.mat');
+            oMAT = OBSRNX.loadFromMAT('temp.mat');
+            
+            obj.verifyEqual(o.header,oMAT.header)
+            obj.verifyEqual(o.t,oMAT.t)
+            obj.verifyEqual(o.satpos,oMAT.satpos)
+            obj.verifyEqual(o.obs,oMAT.obs)
+            obj.verifyEqual(o.recpos,oMAT.recpos)
+            
+            % Cleanup
+            if exist('temp.mat','file')
+               delete temp.mat 
+            end
+        end
     end
     methods (Test, ParameterCombination='sequential')
         function testGetObservation(obj,ts)

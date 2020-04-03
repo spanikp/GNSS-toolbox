@@ -135,21 +135,24 @@ classdef SATPOS
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Method to re-calculate local sat position (ele,azi,r)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            fprintf('>>> Computing satellite positions (local) >>>\n')
-            obj.local = cell(1,numel(obj.satList));
-            obj.local(:) = {zeros(size(obj.gpstime,1),3)};
-            if ~isequal(obj.localRefPoint,[0 0 0])
-                ell = referenceEllipsoid('wgs84');
-                [lat0,lon0,h0] = ecef2geodetic(obj.localRefPoint(1),obj.localRefPoint(2),obj.localRefPoint(3),ell,'degrees');
-                for i = 1:numel(obj.satList)
-                    fprintf(' -> computing satellite %s%02d ',obj.gnss,obj.satList(i));
-                    timeSel = sum(obj.ECEF{i},2) ~= 0;
-                    [azi,elev,slantRange] = ecef2aer(obj.ECEF{i}(timeSel,1),...
-                        obj.ECEF{i}(timeSel,2),...
-                        obj.ECEF{i}(timeSel,3),...
-                        lat0,lon0,h0,ell);
-                    obj.local{i}(timeSel,:) = [elev,azi,slantRange];
-                    fprintf('(done)\n');
+            dbg = dbstack();
+            if ~ismember('OBSRNX.loadFromMAT',{dbg.name})
+                fprintf('>>> Computing satellite positions (local) >>>\n')
+                obj.local = cell(1,numel(obj.satList));
+                obj.local(:) = {zeros(size(obj.gpstime,1),3)};
+                if ~isequal(obj.localRefPoint,[0 0 0])
+                    ell = referenceEllipsoid('wgs84');
+                    [lat0,lon0,h0] = ecef2geodetic(obj.localRefPoint(1),obj.localRefPoint(2),obj.localRefPoint(3),ell,'degrees');
+                    for i = 1:numel(obj.satList)
+                        fprintf(' -> computing satellite %s%02d ',obj.gnss,obj.satList(i));
+                        timeSel = sum(obj.ECEF{i},2) ~= 0;
+                        [azi,elev,slantRange] = ecef2aer(obj.ECEF{i}(timeSel,1),...
+                            obj.ECEF{i}(timeSel,2),...
+                            obj.ECEF{i}(timeSel,3),...
+                            lat0,lon0,h0,ell);
+                        obj.local{i}(timeSel,:) = [elev,azi,slantRange];
+                        fprintf('(done)\n');
+                    end
                 end
             end
         end 
