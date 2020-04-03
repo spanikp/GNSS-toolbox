@@ -1,7 +1,7 @@
 classdef OBSRNX
-	properties
+    properties
         % header is OBSRNXheader object
-		header
+        header
         
         % path is rel/abs to folder where input RINEX file is stored
         path (1,:) char
@@ -63,7 +63,6 @@ classdef OBSRNX
         % satpos is array of SATPOS objects
         satpos (1,:) SATPOS
     end
-    
     methods
         function obj = OBSRNX(filepath,param)
             if nargin == 1
@@ -126,12 +125,12 @@ classdef OBSRNX
             validateattributes(ephType,{'char'},{},2)
             mustBeMember(ephType,{'broadcast','precise'})
             if nargin == 2
-            	switch ephType
+                switch ephType
                     case 'broadcast'
                         f = 'brdc';
                     case 'precise'
                         f = 'eph';
-            	end
+                end
                 ephFolder = fullfile(obj.path,f);
             end
             validateattributes(ephFolder,{'char'},{},3)
@@ -168,10 +167,10 @@ classdef OBSRNX
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Store OBSRNX object to MAT file
             % outMatFullFileName
-            %   - full path to output MAT file
-            %	- can be with or withou extension
-            %	- if other extension than *.mat given, warning is called 
-            %     and etension is forced to be *.mat
+            %    - full path to output MAT file
+            %    - can be with or withou extension
+            %    - if other extension than *.mat given, warning is called 
+            %      and extension is forced to be *.mat
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             if nargin == 1
                 [~,filenameOut,~] = fileparts(fullfile(obj.path, obj.filename));
@@ -386,20 +385,55 @@ classdef OBSRNX
                 end
             end
         end
-        function [obj, obsrnx] = harmonizeWith(obj,obsrnx)
+        function [obj, obsrnx] = harmonizeWith(obj,obsrnx,varargin)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %
+            % Method used to aligned observed satellites and observed times
+            % between two receivers (obj and obsrnx).
+            %
+            % Input (required):
+            % obsrnx - another OBSRNX object for alignment 
+            %
+            % Input (optional):
+            % 'HarmonizeObsTypes' - true/false (default false) to align
+            %     also observation types between these OBSRNX objects
+            %
+            % Output:
+            % obj and obsrnx with updated sat lists, observation times and
+            % possibly also observation types (true by default)
+            %
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             validateattributes(obsrnx,{'OBSRNX'},{'scalar'},2)
+            p = inputParser();
+            addOptional(p,'HarmonizeObsTypes',true,@(x) islogical(x));
+            parse(p,varargin{:});
+            harmonizeObsTypes = p.Results.HarmonizeObsTypes;
+            
+            % Find common time between obj and obsrnx
             commonGNSS = intersect(obj.gnss,obsrnx.gnss);
             obj = obj.keepGNSSs(commonGNSS);
             obj = obj.harmonizeObsWithSatpos();
             obsrnx = obsrnx.keepGNSSs(commonGNSS);
             obsrnx = obsrnx.harmonizeObsWithSatpos();
             
-            % Get common time for both receivers and make cut
+            % Get common time for both receivers and make time selection
             tBase = datetime(obj.t(:,end),'ConvertFrom','datenum');
             tRover = datetime(obsrnx.t(:,end),'ConvertFrom','datenum');
             tCommon = intersect(tBase,tRover);
             obj = obj.getTimeSelection(tCommon);
             obsrnx = obsrnx.getTimeSelection(tCommon);
+            
+            % Align observation types
+            if harmonizeObsTypes
+                for i = 1:numel(commonGNSS)
+                    gnss_ = obj.gnss(i);
+                    obsTypesBase = obj.obsTypes.(gnss_);
+                    obsTypesRover = obsrnx.obsTypes.(gnss_);
+                    commonObsTypes = intersect(obsTypesBase,obsTypesRover);
+                    obj = obj.removeObsTypes(gnss_,setdiff(obsTypesBase,commonObsTypes));
+                    obsrnx = obsrnx.removeObsTypes(gnss_,setdiff(obsTypesRover,commonObsTypes));
+                end
+            end
         end
     end
     methods
