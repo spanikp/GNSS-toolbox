@@ -22,7 +22,9 @@ classdef BaselineHandlerTest < matlab.unittest.TestCase
     end
     methods (Test)
         function testConstructorFail(obj)
-		    
+            o1 = OBSRNX('../data/base080G_30s_15min.19o');
+            o2 = OBSRNX('../data/rover080G_30s_15min.19o');
+		    obj.verifyError(@() BaselineHandler([o1; o2],'G'),'ValidationError:NotValidObservationStruct')
         end
     end
 end

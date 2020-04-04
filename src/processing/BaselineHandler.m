@@ -21,6 +21,7 @@ classdef BaselineHandler
             obj.base = temp.harmonizeObsWithSatpos();
             temp = obsrnx(2).keepGNSSs(sys);
             obj.rover = temp.harmonizeObsWithSatpos();
+            obj.validateInputs();
             
             % Harmonize Base and Rover times and satellites
             [obj.base, obj.rover] = obj.base.harmonizeWith(obj.rover);
@@ -61,6 +62,16 @@ classdef BaselineHandler
                 refSat(i,1).idxRange = maxSatIdxs(i,1):maxSatIdxs(i,2);
                 refSat(i,1).from = datetime(obj.tCommon(maxSatIdxs(i,1)));
                 refSat(i,1).to = datetime(obj.tCommon(maxSatIdxs(i,2)));
+            end
+        end
+    end
+    methods (Access = private)
+        function validateInputs(obj)
+            if isempty(obj.base.satpos) || isempty(obj.rover.satpos)
+                error('ValidationError:NotValidObservationStruct','Empty observation struct is not allowed as input!')
+            end
+            if isempty(obj.base.satpos) || isempty(obj.rover.satpos)
+                error('ValidationError:NotValidSATPOS','Empty SATPOS is not allowed as input!')
             end
         end
     end
