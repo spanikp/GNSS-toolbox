@@ -551,6 +551,16 @@ classdef OBSRNX
             tt = datetime(obj.t(:,9),'ConvertFrom','datenum');
             tIdx = tt >= tRange(1) & tt <= tRange(2);
         end
+        function ts = getSamplingInSeconds(obj)
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Retrun sampling rate as most frequent time difference from
+            % observation time array obj.t.
+            %
+            % Output: value in seconds
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            dt = diff(datetime(obj.t(:,9),'ConvertFrom','datenum'));
+            ts = seconds(mode(dt));
+        end
     end
     methods (Access = private)
         function obj = loadRNXobservation(obj,param)
