@@ -197,7 +197,7 @@ classdef OBSRNX
             % Input (required):
             % gnss - satellite system identifier (one of 'GREC')
             % satNo - satellite number
-            % obsType - observation identifier
+            % obsType - char/cell of observation identifiers
             % 
             % Input (optional)
             % indices - specify indices which you want to select
@@ -216,11 +216,15 @@ classdef OBSRNX
             validatestring(gnss,split(obj.gnss,''));
             validateattributes(satNo,{'double'},{'scalar','positive'},2);
             mustBeMember(satNo,obj.sat.(gnss))
-            validateattributes(obsType,{'char'},{'size',[1,3]},3);
-            validatestring(obsType,obj.header.obsTypes.(gnss));
+            validateattributes(obsType,{'char','cell'},{'size',[1,nan]},3);
+            mustBeMember(obsType,obj.obsTypes.(gnss))
             
             satIdx = obj.sat.(gnss) == satNo;
-            obsTypeIdx = strcmp(obsType,obj.header.obsTypes.(gnss));
+            if ischar(obsType)
+                obsTypeIdx = strcmp(obsType,obj.header.obsTypes.(gnss));
+            elseif iscell(obsType)
+                [~,obsTypeIdx] = ismember(obsType,obj.header.obsTypes.(gnss));
+            end
             data = obj.obs.(gnss)(satIdx);
             if nargin < 5
                 indices = 1:size(data{1},1);

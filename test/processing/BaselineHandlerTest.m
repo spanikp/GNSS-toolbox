@@ -4,12 +4,6 @@ classdef BaselineHandlerTest < matlab.unittest.TestCase
         oRover
         bh
     end
-    properties (TestParameter)
-        ts = {...
-            {'G', 6,'C1C',  1, 25083226.133,' 6'};...
-        };
-        gnss = {'G','R','E','C'};
-    end
     methods (TestClassSetup)
         function setupTest(obj)
             addpath(genpath('../../../src'));
