@@ -4,18 +4,10 @@ classdef BaselineHandler
         base
         rover
         tCommon
-        phaseObs
-        
         sessions
-        
-        
-        sdBase
-        sdRover
-        sdRhoBase
-        sdRhoRover
-        dd
-        ddRho
-        ddRes
+    end
+    properties (Access = private)
+        phaseObs
     end
     methods
         function obj = BaselineHandler(obsrnx,sys)
@@ -74,33 +66,96 @@ classdef BaselineHandler
                 sessions(i,1).idxRange = maxSatIdxs(i,1):maxSatIdxs(i,2);
                 sessions(i,1).from = datetime(obj.tCommon(maxSatIdxs(i,1)));
                 sessions(i,1).to = datetime(obj.tCommon(maxSatIdxs(i,2)));
-                availableSats = find(sum(~isnan(satsElevation(maxSatIdxs(i,1):maxSatIdxs(i,2),:)),1) ~= 0);
+                availableSats = obj.base.sat.(obj.gnss)(sum(~isnan(satsElevation(sessions(i,1).idxRange,:)),1) ~= 0);
                 sessions(i,1).slaveSats = setdiff(availableSats,sessions(i,1).refSat);
             end
         end
-        function dd = getDD(obj,phases)
-            if nargin == 1
-                phases = obj.phaseObs;
-            end
-            mustBeMember(phases,obj.phaseObs)
-            nPhases = numel(phases);
-            
-            oBase = nan(numel(obj.tCommon),nPhases*(max([obj.sessions.slaveSats])+1));
-            oRover = nan(numel(obj.tCommon),nPhases*(max([obj.sessions.slaveSats])+1));
-            for i = 1:2%numel(obj.sessions)
-                satsToProcess = [obj.sessions(i).refSat, obj.sessions(i).slaveSats];
-                for j = 1:numel(satsToProcess)
-                    prn = satsToProcess(j);
-                    oBase(obj.sessions(i).idxRange,(nPhases*(j-1)+1):(nPhases*j)) = obj.base.getObservation(obj.gnss,prn,phases,obj.sessions(i).idxRange);
-                    oRover(obj.sessions(i).idxRange,(nPhases*(j-1)+1):(nPhases*j)) = obj.rover.getObservation(obj.gnss,prn,phases,obj.sessions(i).idxRange);
+        function dd = getDD(obj,phases,units)
+            if nargin < 3
+                units = 'cycles';
+                if nargin < 2
+                    phases = obj.phaseObs;
                 end
             end
-            sd = oRover - oBase;
+            validateattributes(phases,{'cell'},{'size',[1,nan]},2)
+            assert(all(cellfun(@(x) length(x)==3 & isa(x,'char'),phases)),'Measurement''s identifier has to comply rules according RINEX3 format! (three chars)')
+            assert(all(cellfun(@(x) strcmp(x(1),'C') | strcmp(x(1),'L'),phases)),'Only phase or code measurement are valid as input for DD computation!')
+            %mustBeMember(phases,obj.phaseObs)
+            mustBeMember(units,{'cycles','meters'})
+            refSatUnitFactor = ones(1,numel(phases));
+            slaveSatUnitFactor = ones(1,numel(phases));
+            nPhases = numel(phases);
             
-            % Form double differences
+            maxSatNo = max([[obj.sessions.refSat]'; [obj.sessions.slaveSats]']);
             dd = cell(1,nPhases);
-            for i = 1:nPhases
-                dd{i} = diff(sd(:,i:nPhases:end),1,2);
+            dd(:) = {nan(numel(obj.tCommon),maxSatNo)};
+            for i = 1:numel(obj.sessions)
+                refSat = obj.sessions(i).refSat;
+                if strcmp(units,'meters')
+                    refSatUnitFactor = cellfun(@(x) getWavelength(obj.gnss,str2double(x(2)),refSat),phases);
+                end
+                oBaseRefsat = obj.base.getObservation(obj.gnss,refSat,phases,obj.sessions(i).idxRange).*refSatUnitFactor;
+                oRoverRefsat = obj.rover.getObservation(obj.gnss,refSat,phases,obj.sessions(i).idxRange).*refSatUnitFactor;
+                sdRef = oRoverRefsat - oBaseRefsat;
+                
+                % Compute single and double differences
+                for slaveSat = obj.sessions(i).slaveSats
+                    if strcmp(units,'meters')
+                        slaveSatUnitFactor = cellfun(@(x) getWavelength(obj.gnss,str2double(x(2)),slaveSat),phases);
+                    end
+                    oBaseSlave = obj.base.getObservation(obj.gnss,slaveSat,phases,obj.sessions(i).idxRange).*slaveSatUnitFactor;
+                    oRoverSlave = obj.rover.getObservation(obj.gnss,slaveSat,phases,obj.sessions(i).idxRange).*slaveSatUnitFactor;
+                    sdSlave = oRoverSlave - oBaseSlave;
+                    for phaseIdx = 1:nPhases
+                        dd{phaseIdx}(obj.sessions(i).idxRange,slaveSat) = sdSlave(:,phaseIdx) - sdRef(:,phaseIdx);
+                    end
+                end
+            end
+        end
+        function ddres = getDDres(obj,phases,units)
+            if nargin < 3
+                units = 'cycles';
+                if nargin < 2
+                    phases = obj.phaseObs;
+                end
+            end
+            validateattributes(phases,{'cell'},{'size',[1,nan]},2)
+            assert(all(cellfun(@(x) length(x)==3 & isa(x,'char'),phases)),'Input cell has to consist of valid phase or code measurement identifier!')
+            assert(all(cellfun(@(x) strcmp(x(1),'C') | strcmp(x(1),'L'),phases)),'Only phase or code measurement are valid as input for DD computation!')
+            %mustBeMember(phases,obj.phaseObs)
+            mustBeMember(units,{'cycles','meters'})
+            refSatUnitFactor = 1;
+            slaveSatUnitFactor = 1;
+            nPhases = numel(phases);
+            
+            % Get observation double differences
+            dd = obj.getDD(phases,units);
+            
+            % Get slant distance double differences (refers to obj.base.recpos and obj.rover.recpos)
+            maxSatNo = max([[obj.sessions.refSat]'; [obj.sessions.slaveSats]']);
+            ddres = cell(1,nPhases);
+            ddres(:) = {nan(numel(obj.tCommon),maxSatNo)};
+            for i = 1:numel(obj.sessions)
+                refSat = obj.sessions(i).refSat;
+                if strcmp(units,'cycles')
+                    refSatUnitFactor = cellfun(@(x) 1/getWavelength(obj.gnss,str2double(x(2)),refSat),phases);
+                end
+                [~,~,rBaseRefsat] = obj.base.getLocal(obj.gnss,refSat,obj.sessions(i).idxRange);
+                [~,~,rRoverRefsat] = obj.rover.getLocal(obj.gnss,refSat,obj.sessions(i).idxRange);
+                rsdRef = (rRoverRefsat - rBaseRefsat).*refSatUnitFactor;
+                
+                % Compute single and double slant range differences
+                for slaveSat = obj.sessions(i).slaveSats
+                    if strcmp(units,'cycles')
+                        slaveSatUnitFactor = cellfun(@(x) 1/getWavelength(obj.gnss,str2double(x(2)),refSat),phases);
+                    end
+                    [~,~,rBase] = obj.base.getLocal(obj.gnss,slaveSat,obj.sessions(i).idxRange);
+                    [~,~,rRover] = obj.rover.getLocal(obj.gnss,slaveSat,obj.sessions(i).idxRange);
+                    rsd = (rRover - rBase).*slaveSatUnitFactor;
+                    for phaseIdx = 1:nPhases
+                        ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat) = dd{phaseIdx}(obj.sessions(i).idxRange,slaveSat) - (rsd(:,phaseIdx) - rsdRef(:,phaseIdx));
+                    end
+                end
             end
         end
     end

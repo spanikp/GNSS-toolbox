@@ -221,9 +221,9 @@ classdef OBSRNX
             
             satIdx = obj.sat.(gnss) == satNo;
             if ischar(obsType)
-                obsTypeIdx = strcmp(obsType,obj.header.obsTypes.(gnss));
+                obsTypeIdx = strcmp(obsType,obj.obsTypes.(gnss));
             elseif iscell(obsType)
-                [~,obsTypeIdx] = ismember(obsType,obj.header.obsTypes.(gnss));
+                [~,obsTypeIdx] = ismember(obsType,obj.obsTypes.(gnss));
             end
             data = obj.obs.(gnss)(satIdx);
             if nargin < 5
@@ -413,12 +413,21 @@ classdef OBSRNX
             parse(p,varargin{:});
             harmonizeObsTypes = p.Results.HarmonizeObsTypes;
             
-            % Find common time between obj and obsrnx
+            % Find common GNSSs and harmonize
             commonGNSS = intersect(obj.gnss,obsrnx.gnss);
             obj = obj.keepGNSSs(commonGNSS);
             obj = obj.harmonizeObsWithSatpos();
             obsrnx = obsrnx.keepGNSSs(commonGNSS);
             obsrnx = obsrnx.harmonizeObsWithSatpos();
+            
+            % Find common satellites and harmonize
+            for i = 1:numel(commonGNSS)
+                commonSats = intersect(obj.sat.(commonGNSS(i)),obsrnx.sat.(commonGNSS(i)));
+                obj = obj.removeSats(commonGNSS(i),setdiff(obj.sat.(commonGNSS(i)),commonSats));
+                obj = obj.harmonizeObsWithSatpos();
+                obsrnx = obsrnx.removeSats(commonGNSS(i),setdiff(obsrnx.sat.(commonGNSS(i)),commonSats));
+                obsrnx = obsrnx.harmonizeObsWithSatpos();
+            end
             
             % Get common time for both receivers and make time selection
             tBase = datetime(obj.t(:,end),'ConvertFrom','datenum');
