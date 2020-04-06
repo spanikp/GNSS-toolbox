@@ -96,6 +96,8 @@ classdef BaselineHandler
                 end
                 oBaseRefsat = obj.base.getObservation(obj.gnss,refSat,phases,obj.sessions(i).idxRange).*refSatUnitFactor;
                 oRoverRefsat = obj.rover.getObservation(obj.gnss,refSat,phases,obj.sessions(i).idxRange).*refSatUnitFactor;
+                oBaseRefsat(oBaseRefsat == 0) = nan;
+                oRoverRefsat(oRoverRefsat == 0) = nan;
                 sdRef = oRoverRefsat - oBaseRefsat;
                 
                 % Compute single and double differences
@@ -105,6 +107,8 @@ classdef BaselineHandler
                     end
                     oBaseSlave = obj.base.getObservation(obj.gnss,slaveSat,phases,obj.sessions(i).idxRange).*slaveSatUnitFactor;
                     oRoverSlave = obj.rover.getObservation(obj.gnss,slaveSat,phases,obj.sessions(i).idxRange).*slaveSatUnitFactor;
+                    oBaseSlave(oBaseSlave == 0) = nan;
+                    oRoverSlave(oRoverSlave == 0) = nan;
                     sdSlave = oRoverSlave - oBaseSlave;
                     for phaseIdx = 1:nPhases
                         dd{phaseIdx}(obj.sessions(i).idxRange,slaveSat) = sdSlave(:,phaseIdx) - sdRef(:,phaseIdx);
