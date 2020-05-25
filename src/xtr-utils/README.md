@@ -17,7 +17,7 @@ addpath(genpath('GNSS-toolbox/src'))
 
 % Function's calls
 xtr2MPskyplot('example/xtr-utils/GANP.xtr','C1C') % To get plot also for GAL use 'C1X' 
-xtr2MPskyplot('example/xtr-utils/GANP.xtr','S1C') % To get plot also for GAL use 'S1X' 
+xtr2SNRskyplot('example/xtr-utils/GANP.xtr','S1C') % To get plot also for GAL use 'S1X' 
 xtr2CSskyplot('example/xtr-utils/GANP.xtr')
 
 % Use specific options
