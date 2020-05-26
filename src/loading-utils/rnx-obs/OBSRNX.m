@@ -335,6 +335,55 @@ classdef OBSRNX
                 end
             end
         end
+        function obj = repairCycleSlips(obj)
+%             if nargin == 1
+%                 selPhases = cellfun(@(x) strcmp(x(1),'L'), obj.obsTypes);
+%                 obsTypes = obj.obsTypes(selPhases);
+%             end
+%             validateattributes(obsTypes,{'cell'},{},1)
+%             mustBeMember(obsTypes,obj.obsTypes)
+%             assert(all(cellfun(@(x) strcmp(x(1),'L'),obsTypes)),'Only phase observation identifiers are allowed');
+           %t = (1:size(obj.t,1))';
+           for i = 1:numel(obj.gnss)
+               gnss_ = obj.gnss(i);
+               phaseSel = cellfun(@(x) strcmp(x(1),'L'),obj.obsTypes.(gnss_));
+               phasesToProcess = obj.obsTypes.(gnss_)(phaseSel);
+               sp = obj.satpos(arrayfun(@(x) strcmp(x.gnss,gnss_),obj.satpos));
+               for j = 1%:numel(obj.sat.(gnss_))
+                   satNo = obj.sat.(gnss_)(j);
+                   meas = obj.obs.(gnss_){j}(:,phaseSel);
+                   pos = sp.local(sp.satList == satNo); r = pos{1}(:,3);
+                   for k = 1%:nnz(phaseSel)
+                       lambda = getWavelength(gnss_,str2double(phasesToProcess{k}(2)),satNo);
+                       rk = r/lambda;
+                       if sum(meas(:,k)) ~= 0
+                           phi = meas(:,k); 
+                           missingVals = phi == 0;
+                           phi(missingVals) = nan;
+                           rk(missingVals) = nan;
+                           phiD1 = diff(phi);
+                           rkD1 = diff(rk);
+                           
+                           figure
+                           subplot(2,1,1)
+                           plot(phiD1,'.-');
+                           hold on; grid on; box on;
+                           plot(rkD1)
+                           
+                           subplot(2,1,2)
+                           d = phiD1-rkD1;
+                           plot(d,'.-');
+                           mean(d(10:end))
+                           ylim([-3 3])
+                           
+                           
+                           %cs1 = find(abs(diff2) > 10);
+                           %polyfit(,diff2,2)
+                       end
+                   end
+               end
+           end
+        end
         function obj = set.recpos(obj,recposInput)
             validateattributes(recposInput,{'numeric'},{'size',[1,3]},1)
             if (recposInput(1) == 0 && recposInput(2) == 0)
@@ -614,7 +663,6 @@ classdef OBSRNX
                     epochRecords(:,6) = str2doubleq(cellstr(tmp(timeSelection,20:29)));
                     epochRecords(:,7) = str2doubleq(cellstr(tmp(timeSelection,32)));
                     epochRecords(:,8) = str2doubleq(cellstr(tmp(timeSelection,33:35)));
-                    epochRecords = real(epochRecords);
                 else
                     fprintf('(using native "str2double") ')
                     epochRecords(:,1) = str2double(cellstr(tmp(timeSelection,3:6)));

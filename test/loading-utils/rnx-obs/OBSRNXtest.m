@@ -183,6 +183,10 @@ classdef OBSRNXtest < matlab.unittest.TestCase
                delete temp.mat 
             end
         end
+        function testRepairCycleSlip(obj)
+            o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
+            o = o.repairCycleSlips();
+        end
     end
     methods (Test, ParameterCombination='sequential')
         function testGetObservation(obj,ts)
