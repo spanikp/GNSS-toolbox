@@ -327,8 +327,9 @@ classdef OBSRNX
                         for k = 1:nnz(phaseObsSel)
                             if sum(phaseObs(:,k)) ~= 0
                                 measuredEpochIdxs = phaseObs(:,k) ~= 0;
-                                pcvCorr = antex.getCorrection(GNSS,phaseObsFreq(k),[satEle(measuredEpochIdxs),satAzi(measuredEpochIdxs)],correctionMode);
-                                obj.obs.(GNSS){j}(measuredEpochIdxs,phaseObsSelIdx(k)) = phaseObs(measuredEpochIdxs,k) + pcvCorr;
+                                pcvCorrInMeters = antex.getCorrection(GNSS,phaseObsFreq(k),[satEle(measuredEpochIdxs),satAzi(measuredEpochIdxs)],correctionMode);
+                                pcvCorrInCycles = pcvCorrInMeters/getWavelength(GNSS,phaseObsFreq(k),satNo);
+                                obj.obs.(GNSS){j}(measuredEpochIdxs,phaseObsSelIdx(k)) = phaseObs(measuredEpochIdxs,k) + pcvCorrInCycles;
                             end
                         end
                     end
@@ -541,7 +542,7 @@ classdef OBSRNX
                 % Remove rgnss from obs struct
                 remObsSel = obj.gnss == rgnss;
                 if any(remObsSel)
-                    fprintf('OBSRNX satsys "%s" obs removal: %s -> %s',rgnss,obj.gnss,obj.gnss(~remObsSel));
+                    fprintf('OBSRNX satsys "%s" obs removal: %s -> %s\n',rgnss,obj.gnss,obj.gnss(~remObsSel));
                     obj.gnss(obj.gnss == rgnss) = '';
                     obj.sat = rmfield(obj.sat,rgnss);
                     obj.satTimeFlags = rmfield(obj.satTimeFlags,rgnss);
@@ -551,15 +552,15 @@ classdef OBSRNX
                         obj.obsqi = rmfield(obj.obs,rgnss);
                     end
                 else
-                    fprintf('OBSRNX satsys "%s" obs removal: %s not available',rgnss,rgnss);
+                    fprintf('OBSRNX satsys "%s" obs removal: %s not available\n',rgnss,rgnss);
                 end
                 
                 % Remove rgnss from satpos
                 if ~isempty(obj.satpos)
-                    satposGnsses = cellfun(@(x) x.gnss,obj.satpos);
+                    satposGnsses = arrayfun(@(x) x.gnss,obj.satpos);
                     remSatposSel = satposGnsses == rgnss;
                     if any(remSatposSel)
-                        fprintf('OBSRNX satsys "%s" satpos removal: %s -> %s',rgnss,satposGnsses,satposGnsses(~remSatposSel));
+                        fprintf('OBSRNX satsys "%s" satpos removal: %s -> %s\n',rgnss,satposGnsses,satposGnsses(~remSatposSel));
                         obj.satpos = obj.satpos(~remSatposSel);
                     else
                         fprintf('OBSRNX satsys "%s" satpos removal: %s not available',rgnss,rgnss);
