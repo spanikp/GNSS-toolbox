@@ -200,11 +200,15 @@ classdef BaselineHandler
                 end
             end
         end
-        function ddres = getDDres(obj,phases,units)
-            if nargin < 3
-                units = 'cycles';
-                if nargin < 2
-                    phases = obj.phaseObs;
+        function ddres = getDDres(obj,phases,units,tryFixDDresCS)
+            narginchk(2,4)
+            if nargin < 4
+                tryFixDDresCS = false;
+                if nargin < 3
+                    units = 'cycles';
+                    if nargin < 2
+                        phases = obj.phaseObs;
+                    end
                 end
             end
             validateattributes(phases,{'cell'},{'size',[1,nan]},2)
@@ -243,6 +247,10 @@ classdef BaselineHandler
                     for phaseIdx = 1:nPhases
                         rdd = rsdSlave(:,phaseIdx) - rsdRef(:,phaseIdx);
                         ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat) = dd{phaseIdx}(obj.sessions(i).idxRange,slaveSat) - rdd;
+                        if tryFixDDresCS
+                            ddresWithCSfixed = BaselineHandler.fixCSinDDres(ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat));
+                            ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat) = ddresWithCSfixed;
+                        end
                     end
                 end
             end
@@ -257,5 +265,18 @@ classdef BaselineHandler
                 error('ValidationError:NotValidSATPOS','Empty SATPOS is not allowed as input!')
             end
         end
+    end
+    methods (Static)
+        function ddresFixed = fixCSinDDres(ddRes)
+            % Require ddRes to be in cycles!
+            N = round(ddRes);
+            diffToMostFrequentN = mode(N) - N ;
+            ddresFixed = ddRes + diffToMostFrequentN;
+            
+            %figure
+            %plot(ddRes,'.')
+            %hold on;
+            %plot(ddresFixed,'ro')
+        end 
     end
 end
