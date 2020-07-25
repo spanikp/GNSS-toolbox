@@ -160,10 +160,11 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             [elev,azi,~] = o.getLocal(gnss_,satNo);
             
             % Compute correction manually
-            pcvCorr = obj.antex.getCorrection(gnss_,str2double(obsType(2)),[elev,azi],pcvCorrType);
+            pcvCorrInMeters = obj.antex.getCorrection(gnss_,str2double(obsType(2)),[elev,azi],pcvCorrType);
+            pcvCorrInCycles = pcvCorrInMeters/getWavelength(gnss_,str2double(obsType(2)),satNo);
             o = o.correctAntennaVariation(obj.antex,pcvCorrType);
             afterRemoval = o.getObservation(gnss_,satNo,obsType);
-            obj.verifyEqual(afterRemoval-beforeRemoval,pcvCorr,'AbsTol',1e-5)
+            obj.verifyEqual(afterRemoval-beforeRemoval,pcvCorrInCycles,'AbsTol',1e-5)
         end
         function testSaveToMAT(obj)
             o = OBSRNX('../../data/JABOtestAntennaCorrUnderHorizon.19o');

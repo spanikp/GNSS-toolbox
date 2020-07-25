@@ -117,21 +117,6 @@ classdef Skyplot < handle
                 set(obj.cb,'Limits',limits)
             end
         end
-        function obj = initializeColorbar(obj)
-            if isempty(obj.cb)
-                polarmap
-                obj.cb = colorbar();
-                obj.cb.Location = 'SouthOutside';
-                obj.cb.TickLabelInterpreter = 'latex';
-                obj.cb.FontSize = 11;
-                obj.cb.Box = 'on';
-                if isempty(obj.lgd)
-                    obj.cb.Position = [0.20 0.05 0.64 0.03];
-                else
-                    obj.cb.Position = [0.185 0.05 0.54 0.03];
-                end
-            end
-        end
         function exportToFile(obj,filename,printer,resolution)
             narginchk(2,4)
             if nargin < 4
@@ -178,6 +163,28 @@ classdef Skyplot < handle
             set(obj.fig,'Units','pixels')
             set(obj.fig,'Position',[[200,200],figSize]);
             set(obj.fig,'Units','centimeters')
+        end
+        function obj = initializeColorbar(obj)
+            if isempty(obj.cb)
+                % polarmap() % Download from https://www.mathworks.com/matlabcentral/fileexchange/37099-polarmap-polarized-colormap
+                % Set colormap manually
+                map = [repmat([0,0,1],[32,1]);repmat([1,0,0],[32,1])];
+                r = repmat(abs(linspace(1,-1,64)),[3,1])';
+                map = map.*r + 1 - r;
+                colormap(map)
+                caxis([-1,1]*max(abs(caxis)))
+                
+                obj.cb = colorbar();
+                obj.cb.Location = 'SouthOutside';
+                obj.cb.TickLabelInterpreter = 'latex';
+                obj.cb.FontSize = 11;
+                obj.cb.Box = 'on';
+                if isempty(obj.lgd)
+                    obj.cb.Position = [0.20 0.05 0.64 0.03];
+                else
+                    obj.cb.Position = [0.185 0.05 0.54 0.03];
+                end
+            end
         end
     end
 end

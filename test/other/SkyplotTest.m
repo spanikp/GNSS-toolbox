@@ -6,16 +6,21 @@ classdef SkyplotTest < matlab.unittest.TestCase
             close all
         end
     end
-    methods(TestMethodTeardown)
-        function closeFigure(obj)
+    methods (TestMethodTeardown)
+        function closeFigures(obj)
             close all
         end
     end
     methods (Test)
+        function testEmptySkyplot(obj)
+            sp = Skyplot();
+            title('Amazing skyplot');
+            sp.exportToFile('sample0');
+        end
         function testSkyplotBackground(obj)
             sp = Skyplot('skyplotTestBackground.png',10);
-            sp.exportToFile('sample1.png')
-            sp.exportToFile('sample1.pdf')
+            sp.exportToFile('sample1'); % Create PNG
+            sp.exportToFile('sample1','pdf'); % Create PDF
         end
         function testSkyplotWithLines(obj)
             sp = Skyplot();
@@ -29,10 +34,12 @@ classdef SkyplotTest < matlab.unittest.TestCase
         function testSkyplotWithScatter(obj)
             sp = Skyplot();
             elev = linspace(0,60,100); azi = linspace(90,270,100);
-            sp.addScatter(elev,azi,randn(size(elev)));
-            sp.addScatter(elev,azi+180,randn(size(elev)),10);
-            sp.exportToFile('sample3','pdf');
-            sp.exportToFile('sample3','png');
+            sp.addScatter(30,90,1);
+            sp.addScatter(30,90,-1);
+            %sp.addScatter(elev,azi,randn(size(elev)));
+            %sp.addScatter(elev,azi+180,randn(size(elev)),10);
+            %sp.exportToFile('sample3','pdf');
+            %sp.exportToFile('sample3','png');
         end
         function testSkyplotWithLinesAndScatter(obj)
             sp = Skyplot();

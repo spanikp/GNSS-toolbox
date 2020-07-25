@@ -143,14 +143,24 @@ classdef SATPOS
                 assert(strcmp(obj.ephType,'precise'),'Travel time compensation available only for precise ephemeris!');
             end
             dbg = dbstack();
-            if ~ismember('OBSRNX.loadFromMAT',{dbg.name})
+            if ~ismember('OBSRNX.loadFromMAT',{dbg.name}')
                 fprintf('>>> Computing satellite positions (local) >>>\n')
                 obj.local = cell(1,numel(obj.satList));
                 obj.local(:) = {zeros(size(obj.gpstime,1),3)};
                 if ~isequal(obj.localRefPoint,[0 0 0])
                     ell = referenceEllipsoid('wgs84');
                     [lat0,lon0,h0] = ecef2geodetic(obj.localRefPoint(1),obj.localRefPoint(2),obj.localRefPoint(3),ell,'degrees');
-                    eph = SP3(fullfile(obj.ephFolder,obj.ephList),900,obj.gnss);
+                    
+                    % Load original satellite positions
+                    if assumeTravelTime
+                        switch obj.ephType
+                            case 'broadcast'
+                                error('Not implemented')
+                            case 'precise'
+                                eph = SP3(fullfile(obj.ephFolder,obj.ephList),900,obj.gnss);
+                        end
+                    end
+                    
                     for i = 1:numel(obj.satList)
                         satNo = obj.satList(i);
                         fprintf(' -> computing satellite %s%02d ',obj.gnss,obj.satList(i));
@@ -161,14 +171,14 @@ classdef SATPOS
                             y = obj.ECEF{i}(timeSel,2); yr = obj.localRefPoint(2);
                             z = obj.ECEF{i}(timeSel,3); zr = obj.localRefPoint(3);
                             slantRange = sqrt((x-xr).^2 + (y-yr).^2 + (z-zr).^2);
-                            for ii = 1:3
-                                mTravelTime = (slantRange/2.99792458e8)/86400;
-                                switch obj.ephType
-                                    case 'precise'
-                                        [x,y,z] = eph.interpolatePosition(obj.gnss,satNo,mTimeWanted-mTravelTime);
-                                end
-                                [azi,elev,slantRange] = ecef2aer(x,y,z,lat0,lon0,h0,ell);
+                            mTravelTime = (slantRange/2.99792458e8)/86400;
+                            switch obj.ephType
+                                case 'broadcast'
+                                    error('Not implemented')
+                                case 'precise'
+                                    [x,y,z] = eph.interpolatePosition(obj.gnss,satNo,mTimeWanted-mTravelTime);
                             end
+                            [azi,elev,slantRange] = ecef2aer(x,y,z,lat0,lon0,h0,ell);
                         else
                             [azi,elev,slantRange] = ecef2aer(obj.ECEF{i}(timeSel,1),...
                                 obj.ECEF{i}(timeSel,2),...
