@@ -1,4 +1,4 @@
-function lam = getWavelength(GNSS, frequencyBand, PRN)
+function lam = getWavelength(GNSS,frequencyBand,PRN)
 
 c = 2.99792458e8;
 
@@ -62,11 +62,17 @@ switch GNSS
     case 'C'
        switch frequencyBand
            case 1   % BEIDOU B1
+               f = 1575.42e6;
+           case 2   % BEIDOU B1-2
                f = 1561.098e6;
-           case 2   % BEIDOU B2
+           case 5   % BEIDOU B2a
+               f = 1176.45e6;
+           case 6   % BEIDOU B3
+               f = 1268.52e6;
+           case 7   % BEIDOU B2b
                f = 1207.140e6;
-           case 3   % BEIDOU B3
-               f = 1268.520e6;
+           case 8   % BEIDOU B2(B2a+B2b)
+               f = 1191.795e6;
            otherwise
                error(['There is no ', type, ' measurement defined for Beidou in RINEX !!!']);
        end 

@@ -99,12 +99,27 @@ for i = 1:length(GNScell)
     end
     
     % Multipath loading
-    selMP_GNS = cellfun(@(c) strcmp([' ', GNScell{i}, 'M', MPcode(end-1:end)], c(1:7)), data);
-    if nnz(selMP_GNS) == 0
-        warning('For %s system MP combination %s not available!',GNScell{i},MPcode)
-        AZI.(GNScell{i}).vector = [];
-        ELE.(GNScell{i}).vector = [];
-        continue
+    RNXVER_line = data{cellfun(@(x) strcmp('=RNXVER',x(1:7)),data)};
+    RNXVER = [str2double(RNXVER_line(29)), str2double(RNXVER_line(31:32))]; % 2-element array: [MajorVersion, MinorVersion]
+    switch RNXVER(1)
+        case 2
+            selMP_GNS = cellfun(@(c) strcmp([' ', GNScell{i}, 'M', MPcode], c(1:7)), data);
+            if nnz(selMP_GNS) == 0
+                warning('For %s system MP combination %s not available!',GNScell{i},MPcode)
+                AZI.(GNScell{i}).vector = [];
+                ELE.(GNScell{i}).vector = [];
+                continue
+            end
+        case 3
+            selMP_GNS = cellfun(@(c) strcmp([' ', GNScell{i}, 'M', MPcode(end-1:end)], c(1:7)), data);
+            if nnz(selMP_GNS) == 0
+                warning('For %s system MP combination %s not available!',GNScell{i},MPcode)
+                AZI.(GNScell{i}).vector = [];
+                ELE.(GNScell{i}).vector = [];
+                continue
+            end
+        otherwise
+            error('Unknown RINEX version!')
     end
     dataCell = data(selMP_GNS);
     [timeStamp, meanVal, dataMatrix] = dataCell2matrix(dataCell);

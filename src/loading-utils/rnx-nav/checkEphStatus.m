@@ -2,7 +2,7 @@ function brdcChecked = checkEphStatus(brdc)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to chceck uniquity of records in brdc.eph cell. There is chance
 % that some satellites have more identical records for one moment. This is
-% mainly case of GALILEO and BEIDOU, more often GPS or GLONASS. Function
+% mainly case of GALILEO and BEIDOU, less often GPS or GLONASS. Function
 % also make filtering base on SV Health status (row 18 for GLONASS and row
 % 36 for GPS/GALILEO/BEIDOU). If satellite is set unhealthy (value ~= 0)
 % then this record is skipped.

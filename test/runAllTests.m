@@ -10,14 +10,15 @@ classdef runAllTests
             % Create test suite
             suite = TestSuite.fromFolder(pwd,'IncludingSubfolders',true);
             
-            % Make runner
-            runner = TestRunner.withTextOutput();
-            stream = ToUniqueFile('.','WithPrefix','testReport','WithExtension','.tap');
-            plugin = TAPPlugin.producingVersion13(stream);
-            runner.addPlugin(plugin);
+            % Run without test report
+            run(suite)
             
-            % Run runner with suite
-            runner.run(suite)
+            % % Run with Runner object to create test report
+            %runner = TestRunner.withTextOutput();
+            %stream = ToUniqueFile('.','WithPrefix','testReport','WithExtension','.tap');
+            %plugin = TAPPlugin.producingVersion13(stream);
+            %runner.addPlugin(plugin);
+            %runner.run(suite)
         end
     end
 end

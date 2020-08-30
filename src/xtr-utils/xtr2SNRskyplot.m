@@ -136,7 +136,12 @@ end
 % Put output together
 out.AZI = AZI;
 out.ELE = ELE;
-out.SNR = SNR;
+if exist('SNR','var')
+    out.SNR = SNR;
+else
+    warning('No SNR data available for specified %s!',SNRcode)
+    return 
+end
 
 allGNSSSatPos.azi = allGNSSSatPos.azi(:);
 allGNSSSatPos.ele = allGNSSSatPos.ele(:);

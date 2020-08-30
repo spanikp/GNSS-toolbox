@@ -51,7 +51,12 @@ classdef ANTEX
             %             be used to reduce observed phase measurements from 
             %             APC (antenna phase center) to ARP (antenna ref. point)
             %           - such reduction can be useful for comparison
-            %             between oberved and theoretical DD 
+            %             between oberved and theoretical DD
+            %
+            % Output:
+            % corrVals - correction values which needs to be added to raw
+            %            observations to compensate effect of antenna PCV
+            %          - values are in mm (same units as in ANTEX)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             
             validateattributes(gnss,{'char'},{'size',[1,1]},1)

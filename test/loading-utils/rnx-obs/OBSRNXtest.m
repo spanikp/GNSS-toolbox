@@ -1,63 +1,49 @@
 classdef OBSRNXtest < matlab.unittest.TestCase
     properties
         obsrnx
+        obsrnxqi
         antex
     end
     properties (TestParameter)
         % ts - test scenarios
         ts = {...
-            {'G', 6,'C1C',1, 25083226.133};...
-            {'G',10,'C2W',1, 24493175.922};...
-            {'G',20,'L1C',3,132267380.462};...
-            {'E',24,'C6X',1, 21970068.082};...
-            {'C', 5,'C6I',2, 39425319.414};...
-            {'C', 5,'C6I',2, 39425319.414};...
-            {'C',05,'C2I',120,39386539.219};...
-            {'C',08,'C2I',120,38647743.266};...
-            {'C',13,'C2I',120,38403790.992};...
-            {'C',14,'C2I',120,25646728.430};...
-            {'C',24,'C2I',120,27062087.508};...
-            {'C',26,'C2I',120,22683220.930};...
-            {'C',29,'C2I',120,22324835.641};...
-            {'C',30,'C2I',120,24845596.305};...
-            {'E',02,'C1X',120,26367452.125};...
-            {'E',03,'C1X',120,26128050.578};...
-            {'E',05,'C1X',120,28223616.586};...
-            {'E',08,'C1X',120,24563714.656};...
-            {'E',11,'C1X',120,23864323.914};...
-            {'E',12,'C1X',120,23357469.023};...
-            {'E',18,'C1X',120,25250264.586};...
-            {'E',24,'C1X',120,22961005.094};...
-            {'E',25,'C1X',120,22833748.602};...
-            {'E',33,'C1X',120,27751938.227};...
-            {'E',36,'C1X',120,28479993.398};...
-            {'G',02,'C1C',120,24112060.641};...
-            {'G',06,'C1C',120,23280674.828};...
-            {'G',12,'C1C',120,20243669.383};...
-            {'G',14,'C1C',120,24925886.742};...
-            {'G',15,'C1C',120,24844654.125};...
-            {'G',17,'C1C',120,24037134.602};...
-            {'G',19,'C1C',120,21799689.602};...
-            {'G',24,'C1C',120,20459277.734};...
-            {'G',25,'C1C',120,22670106.602};...
-            {'G',29,'C1C',120,25193805.266};...
-            {'G',32,'C1C',120,23580804.664};...
-            {'R',05,'C1C',120,22327635.805};...
-            {'R',06,'C1C',120,22535240.086};...
-            {'R',13,'C1C',120,23688968.953};...
-            {'R',14,'C1C',120,19972205.289};...
-            {'R',15,'C1C',120,19994336.336};...
-            {'R',16,'C1C',120,23843795.922};...
-            {'R',17,'C1C',120,21287218.898};...
-            {'R',23,'C1C',120,21897345.828};...
-            {'R',24,'C1C',120,20009300.430};...
+            {'G', 6,'C1C',  1, 25083226.133,' 6'};...
+            {'G',10,'C2W',  1, 24493175.922,' 4'};...
+            {'G',20,'L1C',  3,132267380.462,' 5'};...
+            {'E',24,'C6X',  1, 21970068.082,' 8'};...
+            {'C', 5,'C6I',  2, 39425319.414,' 6'};...
+            {'C',05,'C2I',120, 39386539.219,' 6'};...
+            {'C',08,'C2I',120, 38647743.266,' 6'};...
+            {'C',26,'C2I',120, 22683220.930,' 8'};...
+            {'C',29,'C2I',120, 22324835.641,' 8'};...
+            {'C',30,'C2I',120, 24845596.305,' 7'};...
+            {'E',02,'C1X',120, 26367452.125,' 7'};...
+            {'E',03,'C1X',120, 26128050.578,' 7'};...
+            {'E',24,'C1X',120, 22961005.094,' 8'};...
+            {'E',25,'C1X',120, 22833748.602,' 8'};...
+            {'E',36,'C1X',120, 28479993.398,' 6'};...
+            {'G',02,'C1C',120, 24112060.641,' 7'};...
+            {'G',06,'C1C',120, 23280674.828,' 7'};...
+            {'G',24,'C1C',120, 20459277.734,' 8'};...
+            {'G',25,'C1C',120, 22670106.602,' 7'};...
+            {'G',32,'C1C',120, 23580804.664,' 7'};...
+            {'R',05,'C1C',120, 22327635.805,' 7'};...
+            {'R',06,'C1C',120, 22535240.086,' 6'};...
+            {'R',13,'C1C',120, 23688968.953,' 5'};...
+            {'R',23,'C1C',120, 21897345.828,' 7'};...
+            {'R',24,'C1C',120, 20009300.430,' 7'};...
         };
+        gnss = {'G','R','E','C'};
     end
     methods (TestClassSetup)
         function setupTest(obj)
             addpath(genpath('../../../src'));
             obj.obsrnx = OBSRNX('../../data/JAB1080M.19o');
             obj.antex = ANTEX('../../data/JABO_TRM55971.00_NONE_1440932194.atx');
+            
+            param = OBSRNX.getDefaults();
+            param.parseQualityIndicator = true;
+            obj.obsrnxqi = OBSRNX('../../data/JAB1080M.19o',param);
         end
     end
     methods (Test)
@@ -66,6 +52,10 @@ classdef OBSRNXtest < matlab.unittest.TestCase
         end
         function testHeaderParsing(obj)
             obj.verifyInstanceOf(obj.obsrnx.header,'OBSRNXheader')
+        end
+        function testObsTypesReading(obj)
+            obj.verifyEqual(fieldnames(obj.obsrnx.header.obsTypes),cellstr(('CEGIRS')'))
+            obj.verifyEqual(fieldnames(obj.obsrnx.obsTypes),cellstr(('CEGR')'))
         end
         function testUpdateRecPosDxyz(obj)
             oldRecPos = obj.obsrnx.recpos;
@@ -109,10 +99,10 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             
             % Proper value testing
             for i = 1:numel(o.gnss)
-                gnss = o.gnss(i);
-                for j = 1:numel(o.sat.(gnss))
-                    prn = o.sat.(gnss)(j);
-                    [elev,azi,r] = o.getLocal(gnss,prn);
+                gnss_ = o.gnss(i);
+                for j = 1:numel(o.sat.(gnss_))
+                    prn = o.sat.(gnss_)(j);
+                    [elev,azi,r] = o.getLocal(gnss_,prn);
                     if ~isempty(elev)
                         [x,y,z] = o.satpos(i).getECEF(prn);
                         sel = sum([x,y,z],2) ~= 0;
@@ -138,7 +128,7 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.verifyEqual(o.recpos,hdrRecpos)
         end
         function testPCVCorrectionApplicationUnderHorizon(obj)
-            gnss = 'G';
+            gnss_ = 'G';
             satNo = 13;
             obsType = 'L1C';
             pcvCorrType = 'PCV+PCO';
@@ -146,19 +136,19 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             % Sample data reading
         	o = OBSRNX('../../data/JABOtestAntennaCorrUnderHorizon.19o');
             o = o.computeSatPosition('broadcast','../../data/brdc');
-            elev = o.getLocal(gnss,satNo);
+            elev = o.getLocal(gnss_,satNo);
             underHorizonSel = elev < 0;
             
             % Apply PCV correction on measurements
-            beforeCorr = o.getObservation(gnss,satNo,obsType);
-            o = o.correctAntennaVariation(obj.antex,'PCV+PCO');
-            afterCorr = o.getObservation(gnss,satNo,obsType);
+            beforeCorr = o.getObservation(gnss_,satNo,obsType);
+            o = o.correctAntennaVariation(obj.antex,pcvCorrType);
+            afterCorr = o.getObservation(gnss_,satNo,obsType);
             
             obj.verifyNotEqual(beforeCorr,afterCorr);
             obj.verifyEqual(afterCorr(underHorizonSel),zeros(nnz(underHorizonSel),1))
         end
         function testPCVCorrectionApplication(obj)
-            gnss = 'G';
+            gnss_ = 'G';
             satNo = 12;
             obsType = 'L1C';
             pcvCorrType = 'PCV+PCO';
@@ -166,14 +156,37 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             % Sample data reading
         	o = OBSRNX('../../data/JABOtestAntennaCorr.19o');
             o = o.computeSatPosition('precise','../../data/eph');
-            beforeRemoval = o.getObservation(gnss,satNo,obsType);
-            [elev,azi,~] = o.getLocal(gnss,satNo);
+            beforeRemoval = o.getObservation(gnss_,satNo,obsType);
+            [elev,azi,~] = o.getLocal(gnss_,satNo);
             
             % Compute correction manually
-            pcvCorr = obj.antex.getCorrection(gnss,str2double(obsType(2)),[elev,azi],pcvCorrType);
+            pcvCorrInMeters = obj.antex.getCorrection(gnss_,str2double(obsType(2)),[elev,azi],pcvCorrType);
+            pcvCorrInCycles = pcvCorrInMeters/getWavelength(gnss_,str2double(obsType(2)),satNo);
             o = o.correctAntennaVariation(obj.antex,pcvCorrType);
-            afterRemoval = o.getObservation(gnss,satNo,obsType);
-            obj.verifyEqual(afterRemoval-beforeRemoval,pcvCorr,'AbsTol',1e-5)
+            afterRemoval = o.getObservation(gnss_,satNo,obsType);
+            obj.verifyEqual(afterRemoval-beforeRemoval,pcvCorrInCycles,'AbsTol',1e-5)
+        end
+        function testSaveToMAT(obj)
+            o = OBSRNX('../../data/JABOtestAntennaCorrUnderHorizon.19o');
+            o.recpos = [100,100,100];
+            o = o.computeSatPosition('broadcast','../../data/brdc');
+            o.saveToMAT('temp.mat');
+            oMAT = OBSRNX.loadFromMAT('temp.mat');
+            
+            obj.verifyEqual(o.header,oMAT.header)
+            obj.verifyEqual(o.t,oMAT.t)
+            obj.verifyEqual(o.satpos,oMAT.satpos)
+            obj.verifyEqual(o.obs,oMAT.obs)
+            obj.verifyEqual(o.recpos,oMAT.recpos)
+            
+            % Cleanup
+            if exist('temp.mat','file')
+               delete temp.mat 
+            end
+        end
+        function testRepairCycleSlip(obj)
+            o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
+            o = o.repairCycleSlips();
         end
     end
     methods (Test, ParameterCombination='sequential')
@@ -181,6 +194,45 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             refVal = ts{5};
             actualVal = obj.obsrnx.getObservation(ts{1},ts{2},ts{3},ts{4});
             obj.verifyEqual(refVal,actualVal);
+        end
+        function testQualityIndicator(obj,ts)
+            gnss_ = ts{1};
+            prn_ = ts{2};
+            prnIdx = find(obj.obsrnxqi.sat.(gnss_) == prn_);
+            obsType_ = ts{3};
+            obsTypeIdx = find(cellfun(@(x) strcmp(x,obsType_),obj.obsrnxqi.obsTypes.(gnss_)));
+            obsTypeIdx = [2*obsTypeIdx-1, 2*obsTypeIdx];
+            epoch_ = ts{4};
+            
+            testVal = obj.obsrnxqi.obsqi.(gnss_){prnIdx}(epoch_,obsTypeIdx);
+            refVal = ts{6};
+            obj.verifyEqual(testVal,refVal);
+        end
+        function testRemoveGNSS(obj,gnss)
+            o = obj.obsrnx.removeGNSSs(gnss);
+            refVal = obj.obsrnx.gnss;
+            refVal = refVal(refVal ~= gnss);
+            obj.verifyEqual(o.gnss,refVal);
+        end
+        function testRemoveSat(obj,ts)
+            gnss_ = ts{1};
+            prn_ = ts{2};
+            satListRef = obj.obsrnx.sat.(gnss_)(obj.obsrnx.sat.(gnss_) ~= prn_);
+            o = obj.obsrnx.removeSats(gnss_,prn_);
+            obj.verifyEqual(o.sat.(gnss_),satListRef);
+            
+            oqi = obj.obsrnxqi.removeSats(gnss_,prn_);
+            obj.verifyEqual(oqi.sat.(gnss_),satListRef);
+        end
+        function testRemoveObsType(obj,ts)
+            gnss_ = ts{1};
+            obsType_ = ts{3};
+            obsTypesRef = obj.obsrnx.obsTypes.(gnss_)(cellfun(@(x) ~strcmp(x,obsType_),obj.obsrnx.obsTypes.(gnss_)));
+            o = obj.obsrnx.removeObsTypes(gnss_,{obsType_});
+            obj.verifyEqual(o.obsTypes.(gnss_),obsTypesRef);
+            
+            oqi = obj.obsrnxqi.removeObsTypes(gnss_,{obsType_});
+            obj.verifyEqual(oqi.obsTypes.(gnss_),obsTypesRef);
         end
     end
 end
