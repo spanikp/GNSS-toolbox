@@ -3,6 +3,7 @@ classdef SkyplotTest < matlab.unittest.TestCase
     end
     methods (TestClassSetup)
         function setupTest(obj)
+            addpath(genpath('../../src'))
             close all
         end
     end
