@@ -134,7 +134,10 @@ classdef OBSRNX
                 ephFolder = fullfile(obj.path,f);
             end
             validateattributes(ephFolder,{'char'},{},3)
-
+            
+            % Reset if any satpos property exist
+            obj.satpos = SATPOS.empty(1,0);
+            
             % Looping through GNSS in OBSRNX and compute satellite positions
             for i = 1:numel(obj.gnss)
                 s = obj.gnss(i);
