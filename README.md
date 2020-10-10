@@ -1,4 +1,8 @@
-# GNSS-toolbox https://travis-ci.com/spanikp/GNSS-toolbox.svg?branch=master
+# GNSS-toolbox 
+================================================================
+[![Build Status](https://travis-ci.com/spanikp/GNSS-toolbox.svg?branch=master)](https://travis-ci.com/github/spanikp/GNSS-toolbox)
+
+
 GNSSS-toolbox is a set of functions and classes written in MATLAB language to load data from various formats used in GNSS data processing. Toolbox also provides functions to automatically download broadcast or precise ephemeris data and compute satellite positions for given observation periods. Also some visualization functions are provided in the toolbox.
 
 * Reading files
