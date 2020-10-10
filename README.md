@@ -1,5 +1,5 @@
 # GNSS-toolbox 
-================================================================
+==
 [![Build Status](https://travis-ci.com/spanikp/GNSS-toolbox.svg?branch=master)](https://travis-ci.com/github/spanikp/GNSS-toolbox)
 
 
