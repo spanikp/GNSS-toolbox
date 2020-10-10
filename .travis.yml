@@ -1,4 +1,4 @@
 language: matlab
 matlab:
   - latest
-script: matlab -batch 'run(''test/runAllTests'')'
+script: matlab -batch 'pwd()'
