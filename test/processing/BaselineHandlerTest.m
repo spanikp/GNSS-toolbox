@@ -3,6 +3,13 @@ classdef BaselineHandlerTest < matlab.unittest.TestCase
         oBase
         oRover
         bh
+        
+        oBaseEph
+        oRoverEph
+        bhEph
+        dd_res_cycles
+        dd_res_meters
+        ddrd % Double difference residual data
     end
     properties (TestParameter)
         ts = {...
@@ -21,6 +28,24 @@ classdef BaselineHandlerTest < matlab.unittest.TestCase
             obj.oRover = OBSRNX('../data/rover080G_30s_15min.19o');
             obj.oRover = obj.oRover.computeSatPosition('broadcast','../data/brdc');
             obj.bh = BaselineHandler([obj.oBase; obj.oRover],'G');
+            
+            % Get new OBSRNX object with precise ephemeris computed
+            obj.oBaseEph = obj.oBase;
+            obj.oBaseEph = obj.oBaseEph.computeSatPosition('precise','../data/eph/gfz');
+            obj.oRoverEph = obj.oRover;
+            obj.oRoverEph = obj.oRoverEph.computeSatPosition('precise','../data/eph/gfz');
+            obj.bhEph = BaselineHandler([obj.oBaseEph; obj.oRoverEph],'G');
+            obj.dd_res_cycles = obj.bhEph.getDDres({'L1C','L2W'},'cycles');
+            obj.dd_res_meters = obj.bhEph.getDDres({'L1C','L2W'},'meters');
+            
+            % Create table for testing DDres
+            f = fopen('dd_res_data.txt','r');
+            header_line = fgets(f); var_names = strsplit(header_line(1:end-2));
+            d = textscan(f,'%s%f%f%f%f%f%f%f%f%f%f%f%f%f');
+            fclose(f);
+            t = [cell2table(d{1},'VariableNames',{'SatNo'}), array2table(cell2mat(d(2:end)))];
+            t.Properties.VariableNames = var_names;
+            obj.ddrd = t;
         end
     end
     methods (Test)
@@ -50,7 +75,7 @@ classdef BaselineHandlerTest < matlab.unittest.TestCase
         end
     end
     methods (Test, ParameterCombination='sequential')
-        function testGetDDMoreTypes(obj,ts)
+        function testGetDDMoreTypes(obj, ts)
             epochNo = ts{1};
             slaveSat = ts{2};
             obsType = ts{3};
@@ -68,6 +93,68 @@ classdef BaselineHandlerTest < matlab.unittest.TestCase
             valActualMeters = cellfun(@(x) x(epochNo,slaveSat),dd2);
             f = cellfun(@(x) getWavelength('G',str2double(x(2))),obsType);
             obj.verifyEqual(valActualMeters,valRef.*f,'AbsTol',1e-5)
+            
+        end
+        function testGetDDres(obj)
+            ref_sat = 24;
+            sel_ref = cellfun(@(x) strcmp(x,sprintf('G%02d',ref_sat)), obj.ddrd.SAT);
+            obj.assertEqual(obj.bhEph.sessions.refSat,ref_sat);
+            
+            slave_sats = cellfun(@(x) str2num(x(2:3)), obj.ddrd.SAT);
+            slave_sats = setdiff(slave_sats,ref_sat);
+            epoch_idx = 11; % Data in file dd_res_data.txt are in epoch 12:05:00, it is index 11 in input RINEXes
+            
+            phases = {'L1C','L2W'};
+            lambdas = [0.190293672798365, 0.244210213424568];
+            
+            % Get distances to satellites
+            xs = obj.ddrd.X_SAT*1e3; ys = obj.ddrd.Y_SAT*1e3; zs = obj.ddrd.Z_SAT*1e3;
+            xb = obj.ddrd.X_BASE; yb = obj.ddrd.Y_BASE; zb = obj.ddrd.Z_BASE;
+            xr = obj.ddrd.X_ROVER; yr = obj.ddrd.Y_ROVER; zr = obj.ddrd.Z_ROVER;
+            
+            r_base = sqrt((xs - xb).^2 + (ys - yb).^2 + (zs - zb).^2);
+            r_rover = sqrt((xs - xr).^2 + (ys - yr).^2 + (zs - zr).^2);
+            
+            r_sd_base = r_base(~sel_ref) - r_base(sel_ref);
+            r_sd_rover = r_rover(~sel_ref) - r_rover(sel_ref);
+            r_dd = r_sd_rover - r_sd_base;
+
+            for i = 1:2
+                phase = phases{i};
+                lam = lambdas(i);
+                
+                % Reference sat observations
+                obs_base_ref_cycles = obj.ddrd.(sprintf('BASE_%s',phase))(sel_ref);
+                obs_base_ref_meters = obj.ddrd.(sprintf('BASE_%s',phase))(sel_ref)*lam;
+                obs_rover_ref_cycles = obj.ddrd.(sprintf('ROVER_%s',phase))(sel_ref);
+                obs_rover_ref_meters = obj.ddrd.(sprintf('ROVER_%s',phase))(sel_ref)*lam;
+                
+                % Slave sats observations
+                obs_base_slave_cycles = obj.ddrd.(sprintf('BASE_%s',phase))(~sel_ref);
+                obs_base_slave_meters = obj.ddrd.(sprintf('BASE_%s',phase))(~sel_ref)*lam;
+                obs_rover_slave_cycles = obj.ddrd.(sprintf('ROVER_%s',phase))(~sel_ref);
+                obs_rover_slave_meters = obj.ddrd.(sprintf('ROVER_%s',phase))(~sel_ref)*lam;
+                
+                obs_sd_base_cycles = obs_base_slave_cycles - obs_base_ref_cycles;
+                obs_sd_rover_cycles = obs_rover_slave_cycles - obs_rover_ref_cycles;
+                obs_dd_cycles = obs_sd_rover_cycles - obs_sd_base_cycles;
+                ref_val_dd_res_cycles = obs_dd_cycles - r_dd/lam;
+                
+                dd_test = obj.bhEph.getDD({phase});
+                %dd_test{1}(epoch_idx,slaveSat)
+                
+                obs_sd_base_meters = obs_base_slave_meters - obs_base_ref_meters;
+                obs_sd_rover_meters = obs_rover_slave_meters - obs_rover_ref_meters;
+                obs_dd_meters = obs_sd_rover_meters - obs_sd_base_meters;
+                ref_val_dd_res_meters = obs_dd_meters - r_dd;
+                
+                for j = 1:numel(slave_sats)
+                    slaveSat = slave_sats(j);
+                    obj.assertEqual(obs_dd_cycles(j),dd_test{1}(epoch_idx,slaveSat),'AbsTol',1e-5);
+                    obj.assertEqual(ref_val_dd_res_cycles(j),obj.dd_res_cycles{i}(epoch_idx,slaveSat),'AbsTol',1e-5);
+                    obj.assertEqual(ref_val_dd_res_meters(j),obj.dd_res_meters{i}(epoch_idx,slaveSat),'AbsTol',1e-5);
+                end
+            end
         end
     end
 end

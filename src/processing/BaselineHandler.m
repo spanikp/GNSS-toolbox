@@ -30,8 +30,8 @@ classdef BaselineHandler
             obj.phaseObs = ot(cellfun(@(x) strcmp(x(1),'L'),ot));
             
             % Find reference satellite and prepare sessions
-            %obj.sessions = obj.getSessionsByMaxElevation();
-            obj.sessions = obj.getSessionsByInterval(900,30);
+            obj.sessions = obj.getSessionsByMaxElevation();
+            %obj.sessions = obj.getSessionsByInterval(900,30);
         end
         function sessions = getSessionsByMaxElevation(obj)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -217,8 +217,8 @@ classdef BaselineHandler
             mustBeMember(phases,obj.phaseObs)
             mustBeMember(units,{'cycles','meters'})
             refSatUnitFactor = 1;
-            slaveSatUnitFactor = 1;
             nPhases = numel(phases);
+            slaveSatUnitFactor = ones(1,nPhases);
             
             % Get observation double differences
             dd = obj.getDD(phases,units);
@@ -234,6 +234,8 @@ classdef BaselineHandler
                 end
                 [~,~,rBaseRefsat] = obj.base.getLocal(obj.gnss,refSat,obj.sessions(i).idxRange);
                 [~,~,rRoverRefsat] = obj.rover.getLocal(obj.gnss,refSat,obj.sessions(i).idxRange);
+                rBaseRefsat(rBaseRefsat == 0) = nan;
+                rRoverRefsat(rRoverRefsat == 0) = nan;
                 rsdRef = (rRoverRefsat - rBaseRefsat).*refSatUnitFactor;
                 
                 % Compute single and double slant range differences
@@ -243,11 +245,18 @@ classdef BaselineHandler
                     end
                     [~,~,rBaseSlave] = obj.base.getLocal(obj.gnss,slaveSat,obj.sessions(i).idxRange);
                     [~,~,rRoverSlave] = obj.rover.getLocal(obj.gnss,slaveSat,obj.sessions(i).idxRange);
+                    rBaseSlave(rBaseSlave == 0) = nan;
+                    rRoverSlave(rRoverSlave == 0) = nan;
                     rsdSlave = (rRoverSlave - rBaseSlave).*slaveSatUnitFactor;
+                    
+                    % Compute range double difference
+                    rdd = rsdSlave - rsdRef;
+                    %figure; plot(rdd,'.-','DisplayName','dd range'); hold on; plot(dd{1}(obj.sessions(i).idxRange,1),'.-','DisplayName','dd phase'); legend();
                     for phaseIdx = 1:nPhases
-                        rdd = rsdSlave(:,phaseIdx) - rsdRef(:,phaseIdx);
-                        ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat) = dd{phaseIdx}(obj.sessions(i).idxRange,slaveSat) - rdd;
+                        ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat) = dd{phaseIdx}(obj.sessions(i).idxRange,slaveSat) - rdd(:,phaseIdx);
+                        %figure; plot(ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat)); title(sprintf('ref: %.0f, slave: %.0f',refSat,slaveSat))
                         if tryFixDDresCS
+                            %dd_to_correct = ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat)/1;
                             ddresWithCSfixed = BaselineHandler.fixCSinDDres(ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat));
                             ddres{phaseIdx}(obj.sessions(i).idxRange,slaveSat) = ddresWithCSfixed;
                         end
