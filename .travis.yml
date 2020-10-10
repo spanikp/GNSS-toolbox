@@ -1,3 +1,4 @@
 language: matlab
 matlab:
   - latest
+script: matlab -batch 'disp("Hello World")'
