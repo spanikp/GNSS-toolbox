@@ -40,7 +40,7 @@ classdef BaselineHandlerTest < matlab.unittest.TestCase
             
             % Create table for testing DDres
             f = fopen('dd_res_data.txt','r');
-            header_line = fgets(f); var_names = strsplit(header_line(1:end-2));
+            header_line = fgetl(f); var_names = strsplit(header_line);
             d = textscan(f,'%s%f%f%f%f%f%f%f%f%f%f%f%f%f');
             fclose(f);
             t = [cell2table(d{1},'VariableNames',{'SatNo'}), array2table(cell2mat(d(2:end)))];
