@@ -34,6 +34,8 @@ switch GNSS
     case 'GLO'
         INC = 64.8;
         a = R + 19100000;
+    otherwise
+        error('No supported system %s!',GNSS)
 end
 
 X_sat = a.*cos(INC).*cos(DELTA);
