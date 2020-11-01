@@ -40,5 +40,11 @@ classdef CorrectionMapTest < matlab.unittest.TestCase
             corrVals = obj.corrMap.getCorrection(azi,elev);
             obj.verifyEqual(corrVals,90*ones(10,1))    
         end
+        function testPlot(obj)
+            f1 = obj.corrMap.plot();
+            close(f1);
+            f2 = obj.corrMap.plot('regular');
+            close(f2);
+        end
     end
 end

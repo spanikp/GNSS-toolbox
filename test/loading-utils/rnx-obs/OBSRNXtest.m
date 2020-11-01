@@ -188,6 +188,10 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
             o = o.repairCycleSlips();
         end
+        %function testApplyCorrectionMap(obj)
+        %    data = load('mpCorrMap_JABO_GPS_L1C.mat');
+        %    corrMap = CorrectionMap();
+        %end
     end
     methods (Test, ParameterCombination='sequential')
         function testGetObservation(obj,ts)

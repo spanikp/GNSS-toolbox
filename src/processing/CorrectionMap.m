@@ -27,9 +27,10 @@ classdef CorrectionMap
             if nargin < 4
                 interpolationMethod = 'linear';
             end
+            validatestring(interpolationMethod,{'linear','quadratic','cubic'});
+            
             assert(isequal(size(azimuth),size(elevation)),'Size of azimuth(%d x %d) does not agree with size of elevation (%d x %d)!',...
                 size(azimuth,1),size(azimuth,2),size(elevation,1),size(elevation,2))
-            validatestring(interpolationMethod,{'linear','quadratic','cubic'});
             assert(min(obj.azi)<=min(azimuth) & max(obj.azi)>=max(azimuth),'ValidationError:QuerryPointOutOfSkyBounds',...
                 'Input azimuth out of correction specified area!')
             assert(min(obj.elev)<=min(elevation) & max(obj.elev)>=max(elevation),'ValidationError:QuerryPointOutOfSkyBounds',...
@@ -37,6 +38,68 @@ classdef CorrectionMap
             
             % Correction interpolation
             corrValues = interp2(obj.azi,obj.elev,obj.corr,azimuth,elevation,interpolationMethod);
+        end
+        function f = plot(obj,plotType,caxisLimits)
+            if nargin < 3
+                caxisLimits = obj.getCorrLimits();
+                if nargin < 2
+                    plotType = 'skyplot';
+                end
+            end
+            validateattributes(plotType,{'char'},{'size',[1,nan]},2);
+            validatestring(plotType,{'skyplot','regular'});
+            validateattributes(caxisLimits,{'double'},{'size',[1,2],'increasing'},3)
+            
+            % Replace nan by 0 (only for plotting purposes)
+            corrForPlotting = obj.corr;
+            corrForPlotting(isnan(corrForPlotting)) = 0;
+            
+            f = figure();
+            plotTitle = sprintf('Correction grid (%s, %s)',obj.gnss,obj.obsType);
+            switch plotType
+                case 'skyplot'
+                    f.Position = [681,374,797,605];
+                    polarplot3d(flipud(corrForPlotting),'PlotType','surfn','RadialRange',[0 90],'PolarGrid',{6,12},...
+                        'GridStyle','-','GridColor',[0 0 0 0.15],'AxisLocation','surf','TickSpacing',15);
+                    view(90,-90);
+                    colormap(polarmap());
+                    axis equal;
+                    axis tight;
+                    axis off;
+                    hold on;
+                    text(60,0,-100,'30','FontSize',10,'HorizontalAlignment','center','fontname','arial','FontWeight','bold','background','w');
+                    text(30,0,-100,'60','FontSize',10,'HorizontalAlignment','center','fontname','arial','FontWeight','bold','background','w');
+                    a = gca();
+                    ap = get(a,'Position');
+                    set(a,'Position',ap+[0,-0.05,0,0]);
+                    title(plotTitle,'Position',[108,0],'FontSize',12);
+                case 'regular'
+                    f.Position = [681,381,896,598];
+                    imagesc(corrForPlotting);
+                    grid on;
+                    set(gca,'YDir','normal');
+                    colormap(polarmap());
+                    xlabel('Azimuth (deg)');
+                    ylabel('Elevation (deg)');
+                    title(plotTitle,'FontSize',12);
+                    xlim([min(obj.azi),max(obj.azi)]);
+                    ylim([min(obj.elev),max(obj.elev)]);
+            end
+            caxis(caxisLimits);
+            c = colorbar();
+            set(c,'Box',matlab.lang.OnOffSwitchState('on'));
+            ylabel(c,'Correction value (mm)');
+            tmpPos = c.Position;
+            cX = tmpPos(1); cY = tmpPos(2);
+            cW = tmpPos(3); cH = tmpPos(4);
+            set(c,'Position',[cX+0.035,cY+0.08,0.8*cW,0.8*cH]);
+        end
+    end
+    methods (Access = private)
+        function corrLimits = getCorrLimits(obj)
+            maxAbs = max(max(abs(obj.corr)));
+            corrLimits = [-maxAbs, maxAbs];
+            %corrLimits = [min(min(obj.corr)), max(max(obj.corr))];
         end
     end
 end

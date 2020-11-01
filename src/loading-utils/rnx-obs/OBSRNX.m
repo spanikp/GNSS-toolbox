@@ -380,9 +380,6 @@ classdef OBSRNX
                            mean(d(10:end))
                            ylim([-3 3])
                            
-                           
-                           %cs1 = find(abs(diff2) > 10);
-                           %polyfit(,diff2,2)
                        end
                    end
                end
@@ -503,7 +500,7 @@ classdef OBSRNX
         end
     end
     methods
-        % Removal functions/slicing functions
+        % Removal functions
         function obj = removeSats(obj,gnss_,satsToRemove)
             observedSats = obj.sat.(gnss_);
             removalSatsIdx = ismember(observedSats,satsToRemove);
@@ -577,6 +574,8 @@ classdef OBSRNX
                 obj = obj.removeGNSSs(rgnsses(i));
             end
         end
+        
+        % Get values functions
         function obj = getTimeSelection(obj,datetimeArray)
             assert(size(datetimeArray,2) == 1 & isa(datetimeArray,'datetime'),'Input "datetimeArray" has to be column vector of type "datetime"!')
             tCurrent = datetime(obj.t(:,9),'ConvertFrom','datenum');
@@ -626,6 +625,14 @@ classdef OBSRNX
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             dt = diff(datetime(obj.t(:,9),'ConvertFrom','datenum'));
             ts = seconds(mode(dt));
+        end
+
+        % Modify observation function
+        function obj = applyCorrectionMap(obj,correctionMaps)
+            validateattributes(correctionMaps,{'CorrectionMap'},{'size',[1,nan]},2)
+            correctionMapsGnss = arrayfun(@(x) x.gnss,correctionMaps);
+            
+            
         end
     end
     methods (Access = private)
