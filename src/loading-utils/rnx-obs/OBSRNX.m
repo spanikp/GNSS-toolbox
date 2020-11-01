@@ -634,6 +634,17 @@ classdef OBSRNX
             
             
         end
+        
+        % Exporting function
+        function exportToFile(obj,filename,decimateFactor)
+            if nargin < 2
+                decimateFactor = 1;
+            end
+            fout = fopen(filename,'w');
+            obj.writeHeader(fout);
+            %obj.writeBody(fout);
+            fclose(fout);
+        end
     end
     methods (Access = private)
         function obj = loadRNXobservation(obj,param)
@@ -885,6 +896,57 @@ classdef OBSRNX
                 assert(isequal([1,ns],size(obj.satpos(i).SVclockCorr)),'Inconsistency in "satpos" struct found!')
                 assert(isequal([nt; 1]*ones(1,ns),cell2mat(cellfun(@(x) size(x)',obj.satpos(i).SVclockCorr,'UniformOutput',false))),'Inconsistency in "obs" struct found!')
             end
+        end
+        function writeHeader(obj,fout)
+            % Helper variables
+            h = obj.header;
+            if length(obj.gnss) == 1
+                obsRinexType = obj.gnss;
+            else
+                obsRinexType = 'M';
+            end
+            utcStr = datestr(datetime('now','TimeZone','Z'),'YYYYmmdd HHMMSS UTC ');
+            if h.receiver.clockOffsetApplied
+                rcvClockOffsetApplied = '1';
+            else
+                rcvClockOffsetApplied = '0';
+            end
+            
+            % Write basic RINEX metadata
+            fprintf(fout,'%9s%s%-20s%-20s%-20s\n',h.version,sp(11),'OBSERVATION DATA',obsRinexType,'RINEX VERSION / TYPE');
+            fprintf(fout,'%-20s%-20s%-20s%-20s\n','Matlab OBSRNX',getenv('username'),utcStr,'PGM / RUN BY / DATE');
+            fprintf(fout,'%s%-20s\n',repmat('-',[1,60]),'COMMENT');
+            
+            % Write marker info part
+            fprintf(fout,'%-60s%-20s\n',h.marker.name,'MARKER NAME');
+            fprintf(fout,'%-60s%-20s\n',h.marker.number,'MARKER NUMBER');
+            fprintf(fout,'%-60s%-20s\n',h.marker.type,'MARKER TYPE');
+            
+            % Observer/agency
+            fprintf(fout,'%-20s%-40s%-20s\n',h.observer,h.agency,'OBSERVER / AGENCY');
+            
+            % Receiver info
+            fprintf(fout,'%-20s%-20s%-20s%-20s\n',h.receiver.serialnumber,h.receiver.type,h.receiver.version,'REC # / TYPE / VERS');
+            fprintf(fout,'%-20s%-40s%-20s\n',h.antenna.serialnumber,h.antenna.type,'ANT # / TYPE');
+            fprintf(fout,'%14.4f%14.4f%14.4f%18s%-20s\n',obj.recpos(1),obj.recpos(2),obj.recpos(3),sp(18),'APPROX POSITION XYZ');
+            fprintf(fout,'%14.4f%14.4f%14.4f%18s%-20s\n',h.antenna.offset(1),h.antenna.offset(2),h.antenna.offset(3),sp(18),'ANTENNA: DELTA H/E/N');
+            fprintf(fout,'%6s%-54s%-20s\n',rcvClockOffsetApplied,sp(54),'RCV CLOCK OFFS APPL');
+            
+        end
+        function writeBody(obj,fout)
+            
+        end
+        function writeEpoch(obj,fout)
+            nEpochAll = size(obj.t,1);
+            for i = 1:nEpochAll
+                if rem(i/10) == 0
+                    fprintf('Writing epochs %.1f%%',100*i/nEpochAll)
+                end
+                writeEpochObservation(obj,fout)
+            end
+        end
+        function writeEpochObservation(obj,fout)
+            
         end
     end
 	methods (Static)
