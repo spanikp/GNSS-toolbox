@@ -932,6 +932,72 @@ classdef OBSRNX
             fprintf(fout,'%14.4f%14.4f%14.4f%18s%-20s\n',h.antenna.offset(1),h.antenna.offset(2),h.antenna.offset(3),sp(18),'ANTENNA: DELTA H/E/N');
             fprintf(fout,'%6s%-54s%-20s\n',rcvClockOffsetApplied,sp(54),'RCV CLOCK OFFS APPL');
             
+            % To do 'GLONASS COD/PHS/BIS'
+            % To do 'SYS / PHASE SHIFT'
+            
+            % Leap seconds, SNR units
+            fprintf(fout,'%6d%54s%-20s\n',h.leapSeconds,sp(54),'LEAP SECONDS');
+            fprintf(fout,'%-20s%40s%-20s\n',h.signalStrengthUnit,sp(40),'SIGNAL STRENGTH UNIT');
+            
+            % SYS / # / OBS TYPES for several systems
+            nSatAll = 0;
+            for i = 1:length(obj.gnss)
+                gnss_ = obj.gnss(i);
+                nSatAll = nSatAll + length(obj.sat.(gnss_));
+                obj.writeHeaderObsTypes(fout,gnss_,obj.obsTypes.(gnss_));
+            end
+            fprintf(fout,'%6d%54s%-20s\n',nSatAll,sp(54),'# OF SATELLITES');
+            
+            % Write 'PRN / # OF OBS'
+            for i = 1:length(obj.gnss)
+                gnss_ = obj.gnss(i);
+                for j = 1:length(obj.sat.(gnss_))
+                    satNo = obj.sat.(gnss_)(j);
+                    obsCounts = sum(obj.obs.(gnss_){j} ~= 0);
+                    obj.writeHeaderNoObs(fout,gnss_,satNo,obsCounts);
+                end
+            end
+            
+            % End header section
+            fprintf(fout,'%60s%-20s\n',sp(60),'END OF HEADER');
+
+        end
+        function writeHeaderObsTypes(obj,fout,gnss_,obsTypesCell)
+            n1 = length(obsTypesCell);
+            n_pad = 13 - rem(n1,13);
+            if rem(n_pad,13) == 0
+                n_pad = 0;
+            end
+            obsTypesCell = [obsTypesCell,repmat({'   '},[1,n_pad])];
+            nLines = length(obsTypesCell)/13;
+            assert(rem(nLines,1)==0,'Unexpected error happened!');
+            for i = 1:nLines
+                obsTypesCellRowStr = [' ', strjoin(obsTypesCell(13*(i-1)+1:13*i), ' '),'  '];
+                if i == 1
+                    fprintf(fout,'%s  %3d%54s%-20s\n',gnss_,n1,obsTypesCellRowStr,'SYS / PHASE SHIFT');
+                else
+                    fprintf(fout,'      %54s%-20s\n',obsTypesCellRowStr,'SYS / PHASE SHIFT');
+                end
+            end
+        end
+        function writeHeaderNoObs(obj,fout,gnss_,satNo,nSatObsCount)
+            n1 = length(nSatObsCount);
+            n_pad = 9 - rem(n1,9);
+            if rem(n_pad,9) == 0
+                n_pad = 0;
+            end
+            nSatObsCountStr = arrayfun(@(x) sprintf('%6d',x),nSatObsCount,'UniformOutput',false);
+            nSatObsCountStr = [nSatObsCountStr,repmat({sp(6)},[1,n_pad])];
+            nLines = length(nSatObsCountStr)/9;
+            assert(rem(nLines,1)==0,'Unexpected error happened!');
+            for i = 1:nLines
+                nSatObsCountRowStr = strjoin(nSatObsCountStr(9*(i-1)+1:9*i),'');
+                if i == 1
+                    fprintf(fout,'   %s%02d%54s%-20s\n',gnss_,satNo,nSatObsCountRowStr,'PRN / # OF OBS');
+                else
+                    fprintf(fout,'%6s%54s%-20s\n',sp(6),nSatObsCountRowStr,'PRN / # OF OBS');
+                end
+            end
         end
         function writeBody(obj,fout)
             
