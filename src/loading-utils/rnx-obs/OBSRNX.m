@@ -981,12 +981,15 @@ classdef OBSRNX
             end
         end
         function writeHeaderNoObs(obj,fout,gnss_,satNo,nSatObsCount)
+            zeroObsCount = nSatObsCount == 0;
+            nSatObsCount = num2cell(nSatObsCount);
+            nSatObsCount(zeroObsCount) = {[]};
             n1 = length(nSatObsCount);
             n_pad = 9 - rem(n1,9);
             if rem(n_pad,9) == 0
                 n_pad = 0;
             end
-            nSatObsCountStr = arrayfun(@(x) sprintf('%6d',x),nSatObsCount,'UniformOutput',false);
+            nSatObsCountStr = cellfun(@(x) sprintf('%6d',x),nSatObsCount,'UniformOutput',false);
             nSatObsCountStr = [nSatObsCountStr,repmat({sp(6)},[1,n_pad])];
             nLines = length(nSatObsCountStr)/9;
             assert(rem(nLines,1)==0,'Unexpected error happened!');
