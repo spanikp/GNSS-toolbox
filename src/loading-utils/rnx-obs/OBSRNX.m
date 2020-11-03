@@ -25,7 +25,7 @@ classdef OBSRNX
         % (for many static RINEX files this flags are empty)
         epochFlags (1,1) struct = struct('OK',[],'PowerFailure',[],'StartMovingAntenna',[],...
                                          'NewStationOccupation',[],'HeaderInfo',[],...
-                                         'ExternalEvent',[],'CycleSlipRecord',[]);
+                                         'ExternalEvent',[],'CycleSlipRecord',[],'rawValue',[]);
         
         % recClockOffset is given for every observation epoch
         % (for many static files this value is not set)
@@ -636,13 +636,19 @@ classdef OBSRNX
         end
         
         % Exporting function
-        function exportToFile(obj,filename,decimateFactor)
-            if nargin < 2
-                decimateFactor = 1;
+        function exportToFile(obj,filename,gnsses,decimateFactor,writeRecClockOffset)
+            if nargin < 5
+                writeRecClockOffset = obj.header.receiver.clockOffsetApplied;
+                if nargin < 4
+                    decimateFactor = 1;
+                    if nargin < 3
+                        gnsses = obj.gnss;
+                    end
+                end
             end
             fout = fopen(filename,'w');
             obj.writeHeader(fout);
-            %obj.writeBody(fout);
+            obj.writeBody(fout,gnsses,writeRecClockOffset);
             fclose(fout);
         end
     end
@@ -731,6 +737,8 @@ classdef OBSRNX
                     fprintf('Epoch flag %d: %d records\n',epochFlag,nnz(obj.epochFlags.(epochFlagName)));
                     if epochFlag ~= 0
                         epochRecordsToRemove = epochRecordsToRemove + nnz(obj.epochFlags.(epochFlagName));
+                    else
+                        obj.epochFlags.rawValue = epochRecords(:,7);
                     end
                 end
                 fprintf('Remove non-zero epoch flags: %d records removed\n',epochRecordsToRemove);
@@ -865,6 +873,15 @@ classdef OBSRNX
             end
             obj.consistencyCheckSatpos();
         end
+        function n = getSatelliteCountInEpoch(obj,epochIndex,gnsses)
+            if nargin < 3
+                gnsses = obj.gnss;
+            end
+            n = 0;
+            for i = 1:length(gnsses)
+                n = n + sum(obj.satTimeFlags.(gnsses(i))(epochIndex,:));
+            end
+        end
         function consistencyCheckObs(obj)
             for i = 1:numel(obj.gnss)
                 gnss_ = obj.gnss(i);
@@ -958,6 +975,12 @@ classdef OBSRNX
                 end
             end
             
+            % Write interval and times of first/last observation
+            timeSystem = 'GPS'; t1 = obj.t(1,:); t2 = obj.t(end,:);
+            fprintf(fout,'%10.3f%50s%-20s\n',h.interval,sp(50),'INTERVAL');
+            fprintf(fout,'%6d%6d%6d%6d%6d%13.7f%5s%3s%9s%-20s\n',t1(1),t1(2),t1(3),t1(4),t1(5),t1(6),sp(5),timeSystem,sp(9),'TIME OF FIRST OBS');
+            fprintf(fout,'%6d%6d%6d%6d%6d%13.7f%5s%3s%9s%-20s\n',t2(1),t2(2),t2(3),t2(4),t2(5),t2(6),sp(5),timeSystem,sp(9),'TIME OF LAST OBS');
+            
             % End header section
             fprintf(fout,'%60s%-20s\n',sp(60),'END OF HEADER');
 
@@ -981,6 +1004,7 @@ classdef OBSRNX
             end
         end
         function writeHeaderNoObs(obj,fout,gnss_,satNo,nSatObsCount)
+            nSatObsCount(nSatObsCount > 99999) = 99999; % Handle format overflow (RINEX 3.04, Appendix A12, p.66) 
             zeroObsCount = nSatObsCount == 0;
             nSatObsCount = num2cell(nSatObsCount);
             nSatObsCount(zeroObsCount) = {[]};
@@ -1002,20 +1026,29 @@ classdef OBSRNX
                 end
             end
         end
-        function writeBody(obj,fout)
-            
-        end
-        function writeEpoch(obj,fout)
-            nEpochAll = size(obj.t,1);
-            for i = 1:nEpochAll
-                if rem(i/10) == 0
-                    fprintf('Writing epochs %.1f%%',100*i/nEpochAll)
-                end
-                writeEpochObservation(obj,fout)
+        function writeBody(obj,fout,gnnses,writeRecClockOffset)
+            n_epochs = size(obj.t,1);
+            for i = 1:n_epochs
+                obj.writeEpochTime(fout,i,writeRecClockOffset);
+                %obj.writeEpochbservations(fout,i,gnnses);
             end
         end
-        function writeEpochObservation(obj,fout)
-            
+        function writeEpochTime(obj,fout,epochIndex,writeRecClockOffset)
+            tE = obj.t(epochIndex,1:6);
+            nSats = obj.getSatelliteCountInEpoch(epochIndex);
+            if writeRecClockOffset
+                recClockOffsetAtEpoch = obj.recClockOffset(epochIndex);
+                fprintf(fout,'> %4d %02d %02d %02d %02d %11.7f  %1d%3d%6s%15.12f\n',...
+                    tE(1),tE(2),tE(3),tE(4),tE(5),tE(6),obj.epochFlags.rawValue(epochIndex),nSats,sp(6),recClockOffsetAtEpoch);
+            else
+                fprintf(fout,'> %4d %02d %02d %02d %02d %11.7f  %1d%3d\n',...
+                    tE(1),tE(2),tE(3),tE(4),tE(5),tE(6),obj.epochFlags.rawValue(epochIndex),nSats); 
+            end
+        end
+        function writeEpochObservations(obj,fout,epochIndex,gnnses)
+            for i = 1:length(gnnses)
+                gnss_ = gnnses(i);
+            end
         end
     end
 	methods (Static)

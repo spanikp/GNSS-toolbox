@@ -193,7 +193,11 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             %corrMap = CorrectionMap();
         end
         function testExportToFile(obj)
-            obj.obsrnx.exportToFile(fullfile(pwd(),'testOut.rnx'));
+            gnsses = 'CEGR';
+            decimate = 1;
+            writeReceiverOffset = true;
+            obj.obsrnx.exportToFile(fullfile(pwd(),'testOut.rnx'),gnsses,decimate,false);
+            obj.obsrnx.exportToFile(fullfile(pwd(),'testOutWithOffsets.rnx'),gnsses,decimate,writeReceiverOffset);
             
             
             
