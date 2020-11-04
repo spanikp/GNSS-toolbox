@@ -198,11 +198,7 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             writeReceiverOffset = true;
             obj.obsrnx.exportToFile(fullfile(pwd(),'testOut.rnx'),gnsses,decimate,false);
             obj.obsrnx.exportToFile(fullfile(pwd(),'testOutWithOffsets.rnx'),gnsses,decimate,writeReceiverOffset);
-            
-            
-            
-            
-            
+            obj.obsrnxqi.exportToFile(fullfile(pwd(),'testOutWithQualityIndicators.rnx'));
         end
     end
     methods (Test, ParameterCombination='sequential')

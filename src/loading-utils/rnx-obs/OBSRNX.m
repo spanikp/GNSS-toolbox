@@ -1030,7 +1030,7 @@ classdef OBSRNX
             n_epochs = size(obj.t,1);
             for i = 1:n_epochs
                 obj.writeEpochTime(fout,i,writeRecClockOffset);
-                %obj.writeEpochbservations(fout,i,gnnses);
+                obj.writeEpochObservations(fout,i,gnnses);
             end
         end
         function writeEpochTime(obj,fout,epochIndex,writeRecClockOffset)
@@ -1038,16 +1038,43 @@ classdef OBSRNX
             nSats = obj.getSatelliteCountInEpoch(epochIndex);
             if writeRecClockOffset
                 recClockOffsetAtEpoch = obj.recClockOffset(epochIndex);
-                fprintf(fout,'> %4d %02d %02d %02d %02d %11.7f  %1d%3d%6s%15.12f\n',...
+                fprintf(fout,'> %4d %02d %02d %02d %02d%11.7f  %1d%3d%6s%15.12f\n',...
                     tE(1),tE(2),tE(3),tE(4),tE(5),tE(6),obj.epochFlags.rawValue(epochIndex),nSats,sp(6),recClockOffsetAtEpoch);
             else
-                fprintf(fout,'> %4d %02d %02d %02d %02d %11.7f  %1d%3d\n',...
+                fprintf(fout,'> %4d %02d %02d %02d %02d%11.7f  %1d%3d\n',...
                     tE(1),tE(2),tE(3),tE(4),tE(5),tE(6),obj.epochFlags.rawValue(epochIndex),nSats); 
             end
         end
         function writeEpochObservations(obj,fout,epochIndex,gnnses)
             for i = 1:length(gnnses)
                 gnss_ = gnnses(i);
+                sats_in_epoch_idx = find(obj.satTimeFlags.(gnss_)(epochIndex,:));
+                for j = 1:length(sats_in_epoch_idx)
+                    satNo = obj.sat.(gnss_)(sats_in_epoch_idx(j));
+                    epochObs = obj.obs.(gnss_){sats_in_epoch_idx(j)}(epochIndex,:);
+                    epochObsAvailable = epochObs ~= 0;
+                    epochObs = epochObs(1:find(epochObsAvailable,1,'last'));
+                    
+                    % Split processing if quality indicatos are available or not
+                    if isempty(obj.obsqi)
+                        epochStr = sprintf(repmat('%14.3f  ',[1,length(epochObs)]),epochObs);
+                        epochStr = strrep(epochStr,'         0.000','              ');
+                    else
+                        epochStr = cell(1,length(epochObs));
+                        for io = 1:length(epochObs)
+                            qi = obj.obsqi.(gnss_){sats_in_epoch_idx(j)}(epochIndex,2*io-1:2*io);
+                            epochStr{io} = sprintf('%14.3f%2s',epochObs(io),qi);
+                        end
+                        epochStr = strjoin(epochStr,'');
+                        epochStr = strrep(epochStr,'         0.000','              ');
+                    end
+                    
+                    % Handle trailing spaces
+                    if strcmp(epochStr(end-1:end),'  ')
+                        epochStr = epochStr(1:end-2);
+                    end
+                    fprintf(fout,'%s%02d%s\n',gnss_,satNo,epochStr);
+                end
             end
         end
     end
