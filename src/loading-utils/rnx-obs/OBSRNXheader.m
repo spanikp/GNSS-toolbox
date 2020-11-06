@@ -18,6 +18,7 @@ classdef OBSRNXheader
         observer (1,:) char
         agency (1,:) char
         signalStrengthUnit (1,:) char
+        glonassSlots (:,2) double
     end
    
     methods
@@ -38,6 +39,8 @@ classdef OBSRNXheader
             % Initialize rnx structure
             lineIndex = 0;
             sysObsTypesBuffer = {};
+            glonassSlotsTemp = [];
+            firstGlonassSlotLine = true;
             while 1
                 lineIndex = lineIndex + 1;
                 %line = fileBuffer{lineIndex};
@@ -97,9 +100,15 @@ classdef OBSRNXheader
                 if contains(line,'INTERVAL')
                     obj.interval = sscanf(line(1:60),'%f');
                 end
-                
                 if contains(line,'SYS / # / OBS TYPES')
                     sysObsTypesBuffer = [sysObsTypesBuffer; line];
+                end
+                if contains(line,'GLONASS SLOT / FRQ #')
+                    if firstGlonassSlotLine
+                        firstGlonassSlotLine = false;
+                        glonassSlotsNoSats = sscanf(line(1:3),'%d');
+                    end
+                    glonassSlotsTemp = [glonassSlotsTemp; reshape(line(5:60),[7,8])'];
                 end
                 
                 % Breaks if lineIndex reaches 'END OF HEADER'
@@ -110,6 +119,19 @@ classdef OBSRNXheader
             end
             obj = obj.parseObsTypes(sysObsTypesBuffer);
             obj.printSummary();
+            
+            % Parse GLONASS frequency slots
+            for i = 1:size(glonassSlotsTemp,1)
+                satNo = sscanf(glonassSlotsTemp(i,2:3),'%d');
+                freqSlot = sscanf(glonassSlotsTemp(i,4:6),'%d');
+                if isempty(satNo)
+                    break
+                else
+                    obj.glonassSlots(i,:) = [satNo, freqSlot];
+                end
+            end
+            assert(glonassSlotsNoSats == size(obj.glonassSlots,1),'GLONASS SLOTs / FRQ # mismatch!');
+            
             fclose(finp);
         end
         function printSummary(obj)

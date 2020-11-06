@@ -58,5 +58,9 @@ classdef OBSRNXheadertest < matlab.unittest.TestCase
             obj.verifyEqual(obj.hdr.observer,'spanikp');
             obj.verifyEqual(obj.hdr.agency,'SUT');
         end
+        function testGlonassSlots(obj)
+            glonassSlotsRef = [4 6; 5 1; 6 -4; 13 -2; 14 -7; 15 0; 16 -1; 17 4; 22 -3; 23 3; 24 2];
+            obj.verifyEqual(obj.hdr.glonassSlots,glonassSlotsRef);
+        end
 	end
 end
