@@ -121,16 +121,18 @@ classdef OBSRNXheader
             obj.printSummary();
             
             % Parse GLONASS frequency slots
-            for i = 1:size(glonassSlotsTemp,1)
-                satNo = sscanf(glonassSlotsTemp(i,2:3),'%d');
-                freqSlot = sscanf(glonassSlotsTemp(i,4:6),'%d');
-                if isempty(satNo)
-                    break
-                else
-                    obj.glonassSlots(i,:) = [satNo, freqSlot];
+            if ~firstGlonassSlotLine
+                for i = 1:size(glonassSlotsTemp,1)
+                    satNo = sscanf(glonassSlotsTemp(i,2:3),'%d');
+                    freqSlot = sscanf(glonassSlotsTemp(i,4:6),'%d');
+                    if isempty(satNo)
+                        break
+                    else
+                        obj.glonassSlots(i,:) = [satNo, freqSlot];
+                    end
                 end
+                assert(glonassSlotsNoSats == size(obj.glonassSlots,1),'GLONASS SLOTs / FRQ # mismatch!');
             end
-            assert(glonassSlotsNoSats == size(obj.glonassSlots,1),'GLONASS SLOTs / FRQ # mismatch!');
             
             fclose(finp);
         end
