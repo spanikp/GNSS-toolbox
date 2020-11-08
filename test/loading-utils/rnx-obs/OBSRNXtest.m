@@ -188,9 +188,24 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
             o = o.repairCycleSlips();
         end
-        function testApplyCorrectionMap(obj)
-            %data = load('mpCorrMap_JABO_GPS_L1C.mat');
-            %corrMap = CorrectionMap();
+        function testApplyCorrectionMap_NoCorrection(obj)
+            corrMap = CorrectionMap.getZeroMap('G','L1C');
+            obsrnxCorrected = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
+            origObs = obsrnxCorrected.getObservation('G',1,{'L1C'});
+            obsrnxCorrected = obsrnxCorrected.applyCorrectionMap(corrMap);
+            correctedObs = obsrnxCorrected.getObservation('G',1,{'L1C'});
+            obj.verifyEqual(origObs,correctedObs);
+        end
+        function testApplyCorrectionMap_ConstantCorrection(obj)
+            constantCorrection = 0.01; % Value in m
+            lam = 2.99792458e8/1575.42e6;
+            corrMap = CorrectionMap.getConstantMap('G','L1C',constantCorrection);
+            obsrnxCorrected = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
+            origObs = obsrnxCorrected.getObservation('G',1,{'L1C'});
+            obsrnxCorrected = obsrnxCorrected.applyCorrectionMap(corrMap);
+            correctedObs = obsrnxCorrected.getObservation('G',1,{'L1C'});
+            correctedObs(correctedObs~=0) = correctedObs(correctedObs~=0) + constantCorrection/lam;
+            obj.verifyEqual(origObs,correctedObs);
         end
         function testExportToFile(obj)
             gnsses = 'CEGR';

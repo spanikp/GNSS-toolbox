@@ -1,4 +1,5 @@
 classdef CorrectionMap
+    % Correction map, all values are in meters
     properties
         gnss(1,1) char
         obsType(1,3) char   % Observation identifier (as in RINEX)
@@ -100,6 +101,20 @@ classdef CorrectionMap
             maxAbs = max(max(abs(obj.corr)));
             corrLimits = [-maxAbs, maxAbs];
             %corrLimits = [min(min(obj.corr)), max(max(obj.corr))];
+        end
+    end
+    methods (Static)
+        function corrMap = getZeroMap(gnss,obsType)
+            elevation = 0:1:90;
+            azimuth = 0:1:360;
+            correctionMap = zeros(length(elevation),length(azimuth));
+            corrMap = CorrectionMap(gnss,obsType,correctionMap,azimuth,elevation);
+        end
+        function corrMap = getConstantMap(gnss,obsType,constantCorrection)
+            elevation = 0:1:90;
+            azimuth = 0:1:360;
+            correctionMap = constantCorrection*ones(length(elevation),length(azimuth));
+            corrMap = CorrectionMap(gnss,obsType,correctionMap,azimuth,elevation);
         end
     end
 end

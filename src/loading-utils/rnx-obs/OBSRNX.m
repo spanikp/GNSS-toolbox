@@ -631,7 +631,36 @@ classdef OBSRNX
         function obj = applyCorrectionMap(obj,correctionMaps)
             validateattributes(correctionMaps,{'CorrectionMap'},{'size',[1,nan]},2)
             correctionMapsGnss = arrayfun(@(x) x.gnss,correctionMaps);
+            uCorrectionMapsGnss = unique(correctionMapsGnss);
+            assert(all(ismember(correctionMapsGnss,obj.gnss)),'')
             
+            % Looping through satellite systems
+            for i = 1:length(uCorrectionMapsGnss)
+                gnss_ = uCorrectionMapsGnss(i);
+                selGnss = correctionMapsGnss == gnss_;
+                corrMapsGnss = correctionMaps(selGnss);
+                
+                % Looping through provided correction maps (for specific satellite system)
+                for j = 1:length(corrMapsGnss)
+                    obsType_ = corrMapsGnss(i).obsType;
+                    fprintf('Applying correction to %s (%s)\n',gnss_,obsType_);
+                    
+                    % Looping through satellites for given satellite system
+                    for iSat = 1:length(obj.sat.(gnss_))
+                        satNo = obj.sat.(gnss_)(iSat);
+                        lam = getWavelength(gnss_,str2num(obsType_(2)),satNo);
+                        obsTypeSelIdx = find(strcmp(obsType_,obj.obsTypes.(gnss_)));
+                        obsTimeSel = obj.satTimeFlags.(gnss_)(:,iSat) & obj.obs.(gnss_){iSat}(:,obsTypeSelIdx) ~= 0;
+                        %origObservation = obj.getObservation(gnss_,satNo,{obsType_},obsTimeSel);
+                        [elevation,azimuth,~] = obj.getLocal(gnss_,satNo,obsTimeSel);
+                        phaseCorrectionInMeters = corrMapsGnss(j).getCorrection(azimuth,elevation);
+                        phaseCorrectionCYCLES = phaseCorrectionInMeters/lam;
+                        
+                        % Subtracting correction from original observations
+                        obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) = obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) - phaseCorrectionCYCLES;
+                    end
+                end
+            end
             
         end
         
