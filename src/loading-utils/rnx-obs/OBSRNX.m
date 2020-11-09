@@ -642,7 +642,7 @@ classdef OBSRNX
                 
                 % Looping through provided correction maps (for specific satellite system)
                 for j = 1:length(corrMapsGnss)
-                    obsType_ = corrMapsGnss(i).obsType;
+                    obsType_ = corrMapsGnss(j).obsType;
                     fprintf('Applying correction to %s (%s)\n',gnss_,obsType_);
                     
                     % Looping through satellites for given satellite system
@@ -650,14 +650,19 @@ classdef OBSRNX
                         satNo = obj.sat.(gnss_)(iSat);
                         lam = getWavelength(gnss_,str2num(obsType_(2)),satNo);
                         obsTypeSelIdx = find(strcmp(obsType_,obj.obsTypes.(gnss_)));
-                        obsTimeSel = obj.satTimeFlags.(gnss_)(:,iSat) & obj.obs.(gnss_){iSat}(:,obsTypeSelIdx) ~= 0;
-                        %origObservation = obj.getObservation(gnss_,satNo,{obsType_},obsTimeSel);
-                        [elevation,azimuth,~] = obj.getLocal(gnss_,satNo,obsTimeSel);
-                        phaseCorrectionInMeters = corrMapsGnss(j).getCorrection(azimuth,elevation);
-                        phaseCorrectionCYCLES = phaseCorrectionInMeters/lam;
+                        [elevation,~,~] = obj.getLocal(gnss_,satNo);
                         
-                        % Subtracting correction from original observations
-                        obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) = obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) - phaseCorrectionCYCLES;
+                        obsTimeSel = obj.satTimeFlags.(gnss_)(:,iSat) & ...
+                            obj.obs.(gnss_){iSat}(:,obsTypeSelIdx) ~= 0 & ...
+                            elevation > 0;
+                        if nnz(obsTimeSel) ~= 0
+                            [elevation,azimuth,~] = obj.getLocal(gnss_,satNo,obsTimeSel);
+                            phaseCorrectionInMeters = corrMapsGnss(j).getCorrection(azimuth,elevation);
+                            phaseCorrectionCYCLES = phaseCorrectionInMeters/lam;
+                        
+                            % Subtracting correction from original observations
+                            obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) = obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) - phaseCorrectionCYCLES;
+                        end
                     end
                 end
             end
@@ -985,6 +990,11 @@ classdef OBSRNX
             fprintf(fout,'%6d%54s%-20s\n',h.leapSeconds,sp(54),'LEAP SECONDS');
             fprintf(fout,'%-20s%40s%-20s\n',h.signalStrengthUnit,sp(40),'SIGNAL STRENGTH UNIT');
             
+            % Write Glonass frequency slots
+            if ismember('R',obj.gnss)
+                obj.writeGlonassSlots(fout);
+            end
+            
             % SYS / # / OBS TYPES for several systems
             nSatAll = 0;
             for i = 1:length(obj.gnss)
@@ -1026,9 +1036,34 @@ classdef OBSRNX
             for i = 1:nLines
                 obsTypesCellRowStr = [' ', strjoin(obsTypesCell(13*(i-1)+1:13*i), ' '),'  '];
                 if i == 1
-                    fprintf(fout,'%s  %3d%54s%-20s\n',gnss_,n1,obsTypesCellRowStr,'SYS / PHASE SHIFT');
+                    fprintf(fout,'%s  %3d%54s%-20s\n',gnss_,n1,obsTypesCellRowStr,'SYS / # / OBS TYPES');
                 else
-                    fprintf(fout,'      %54s%-20s\n',obsTypesCellRowStr,'SYS / PHASE SHIFT');
+                    fprintf(fout,'      %54s%-20s\n',obsTypesCellRowStr,'SYS / # / OBS TYPES');
+                end
+            end
+        end
+        function writeGlonassSlots(obj,fout)
+            if contains(obj.gnss,'R')
+                glonassSlots = obj.header.glonassSlots;
+                nGlonass = size(glonassSlots,1);
+                nGlonassPad = 8 - rem(nGlonass,8);
+                if rem(nGlonassPad,8) == 0
+                    nGlonassPad = 0;
+                end
+                glonassSlots = [glonassSlots;zeros(nGlonassPad,2)];
+                nLines = size(glonassSlots,1)/8;
+                assert(rem(nLines,1)==0,'Unexpected error happened!');
+                for i = 1:nLines
+                    if i == 1
+                        lineToWrite = sprintf('%3d',nGlonass);
+                    else
+                        lineToWrite = '   ';
+                    end
+                    for j = (i*8-7):(i*8)
+                        lineToWrite = [lineToWrite,sprintf(' R%02d%3d',glonassSlots(j,1),glonassSlots(j,2))];
+                        lineToWrite = strrep(lineToWrite,' R00  0','       ');
+                    end
+                    fprintf(fout,'%s %-20s\n',lineToWrite,'GLONASS SLOT / FRQ #');
                 end
             end
         end
