@@ -59,8 +59,19 @@ classdef OBSRNXheadertest < matlab.unittest.TestCase
             obj.verifyEqual(obj.hdr.agency,'SUT');
         end
         function testGlonassSlots(obj)
-            glonassSlotsRef = [4 6; 5 1; 6 -4; 13 -2; 14 -7; 15 0; 16 -1; 17 4; 22 -3; 23 3; 24 2];
-            obj.verifyEqual(obj.hdr.glonassSlots,glonassSlotsRef);
+            glonassFreqSlotsRef = [4 6; 5 1; 6 -4; 13 -2; 14 -7; 15 0; 16 -1; 17 4; 22 -3; 23 3; 24 2];
+            obj.verifyEqual(obj.hdr.glonassFreqSlots,glonassFreqSlotsRef);
+        end
+        function testSystemPhaseShifts(obj)
+            phaseShifts(1,1).gnss = 'G'; phaseShifts(1,1).signal = 'L2X'; phaseShifts(1,1).value = -0.25;
+            phaseShifts(2,1).gnss = 'R'; phaseShifts(2,1).signal = 'L1P'; phaseShifts(2,1).value = 0.25;
+            phaseShifts(3,1).gnss = 'R'; phaseShifts(3,1).signal = 'L2C'; phaseShifts(3,1).value = -0.25;
+            phaseShifts(4,1).gnss = 'R'; phaseShifts(4,1).signal = 'L2P'; phaseShifts(4,1).value = 0.0;
+            obj.verifyEqual(obj.hdr.sysPhaseShifts,phaseShifts);
+        end
+        function testGlonassCodeBias(obj)
+            refLine = ' C1C    0.000 C1P    0.000 C2C    0.000 C2P    0.000        GLONASS COD/PHS/BIS ';
+            obj.verifyEqual(obj.hdr.glonassCodeBias,refLine);
         end
 	end
 end

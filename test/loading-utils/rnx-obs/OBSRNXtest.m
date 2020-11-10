@@ -46,6 +46,11 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.obsrnxqi = OBSRNX('../../data/JAB1080M.19o',param);
         end
     end
+    methods (TestClassTeardown)
+        function teardownTests(obj)
+            close all
+        end
+    end
     methods (Test)
         function testConstructor(obj)
             obj.verifyEqual(size(obj.obsrnx.t,1),120);

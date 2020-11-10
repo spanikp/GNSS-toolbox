@@ -983,8 +983,11 @@ classdef OBSRNX
             fprintf(fout,'%14.4f%14.4f%14.4f%18s%-20s\n',h.antenna.offset(1),h.antenna.offset(2),h.antenna.offset(3),sp(18),'ANTENNA: DELTA H/E/N');
             fprintf(fout,'%6s%-54s%-20s\n',rcvClockOffsetApplied,sp(54),'RCV CLOCK OFFS APPL');
             
-            % To do 'GLONASS COD/PHS/BIS'
-            % To do 'SYS / PHASE SHIFT'
+            % Write 'SYS / PHASE SHIFT' information
+            for i = 1:length(h.sysPhaseShifts)
+                fprintf(fout,'%s %3s%9.5f%s%-20s\n',h.sysPhaseShifts(i).gnss,...
+                    h.sysPhaseShifts(i).signal,h.sysPhaseShifts(i).value,sp(46),'SYS / PHASE SHIFT');
+            end
             
             % Leap seconds, SNR units
             fprintf(fout,'%6d%54s%-20s\n',h.leapSeconds,sp(54),'LEAP SECONDS');
@@ -992,7 +995,10 @@ classdef OBSRNX
             
             % Write Glonass frequency slots
             if ismember('R',obj.gnss)
-                obj.writeGlonassSlots(fout);
+                obj.writeGlonassFreqSlots(fout);
+                
+                % Write 'GLONASS COD/PHS/BIS' information
+                fprintf(fout,'%s\n',h.glonassCodeBias);
             end
             
             % SYS / # / OBS TYPES for several systems
@@ -1042,16 +1048,16 @@ classdef OBSRNX
                 end
             end
         end
-        function writeGlonassSlots(obj,fout)
+        function writeGlonassFreqSlots(obj,fout)
             if contains(obj.gnss,'R')
-                glonassSlots = obj.header.glonassSlots;
-                nGlonass = size(glonassSlots,1);
+                glonassFreqSlots = obj.header.glonassFreqSlots;
+                nGlonass = size(glonassFreqSlots,1);
                 nGlonassPad = 8 - rem(nGlonass,8);
                 if rem(nGlonassPad,8) == 0
                     nGlonassPad = 0;
                 end
-                glonassSlots = [glonassSlots;zeros(nGlonassPad,2)];
-                nLines = size(glonassSlots,1)/8;
+                glonassFreqSlots = [glonassFreqSlots;zeros(nGlonassPad,2)];
+                nLines = size(glonassFreqSlots,1)/8;
                 assert(rem(nLines,1)==0,'Unexpected error happened!');
                 for i = 1:nLines
                     if i == 1
@@ -1060,7 +1066,7 @@ classdef OBSRNX
                         lineToWrite = '   ';
                     end
                     for j = (i*8-7):(i*8)
-                        lineToWrite = [lineToWrite,sprintf(' R%02d%3d',glonassSlots(j,1),glonassSlots(j,2))];
+                        lineToWrite = [lineToWrite,sprintf(' R%02d%3d',glonassFreqSlots(j,1),glonassFreqSlots(j,2))];
                         lineToWrite = strrep(lineToWrite,' R00  0','       ');
                     end
                     fprintf(fout,'%s %-20s\n',lineToWrite,'GLONASS SLOT / FRQ #');
