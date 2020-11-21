@@ -202,7 +202,7 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.verifyEqual(origObs,correctedObs);
         end
         function testApplyCorrectionMap_ConstantCorrection(obj)
-            constantCorrection = 0.01; % Value in m
+            constantCorrection = 0.01; % Value in meters
             lam = 2.99792458e8/1575.42e6;
             corrMap = CorrectionMap.getConstantMap('G','L1C',constantCorrection);
             obsrnxCorrected = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');

@@ -3,22 +3,28 @@ classdef CorrectionMap
     properties
         gnss(1,1) char
         obsType(1,3) char   % Observation identifier (as in RINEX)
-        corr(:,:) double    % Correction values in cycles
+        corr(:,:) double    % Correction values in meters
         azi(:,1) double {}  % Correction map Azimuth in degrees
         elev(:,1) double {} % Correction map Elevation in degrees
     end
     methods
-        function obj = CorrectionMap(gnss,obsType,correctionMap,azimuth,elevation)
-            assert(ismember(gnss,{'G','R','E','C'}),'Not allowed GNSS system "%s"!',gnss)
-            assert(obsType(1)=='L','Input observation type "%s" is not a valid phase identifier!',obsType)
-            assert(size(correctionMap,1)==numel(elevation),'Correction map size does not agree with input elevations!')
-            assert(size(correctionMap,2)==numel(azimuth),'Correction map size does not agree with input azimuths!')
-            assert(all(azimuth>=0) & all(azimuth<=360),'Input azimuth has to be between 0 - 360 degrees!')
-            assert(all(elevation>=0) & all(elevation<=90),'Input elevation has to be between 0 - 90 degrees!')
+        function obj = CorrectionMap(gnss,obsType,correctionMap,azimuth,elevation,noCoverageValue)
+            if nargin < 6
+                noCoverageValue = nan;
+            end
+            assert(ismember(gnss,{'G','R','E','C'}),'Not allowed GNSS system "%s"!',gnss);
+            assert(obsType(1)=='L','Input observation type "%s" is not a valid phase identifier!',obsType);
+            assert(size(correctionMap,1)==numel(elevation),'Correction map size does not agree with input elevations!');
+            assert(size(correctionMap,2)==numel(azimuth),'Correction map size does not agree with input azimuths!');
+            assert(all(azimuth>=0) & all(azimuth<=360),'Input azimuth has to be between 0 - 360 degrees!');
+            assert(all(elevation>=0) & all(elevation<=90),'Input elevation has to be between 0 - 90 degrees!');
+            assert(isa(noCoverageValue,'double'),'Input value "noCoverageValue" has to be double!');
             
             obj.gnss = gnss;
             obj.obsType = obsType;
-            obj.corr = correctionMap;
+            corrMap = correctionMap;
+            corrMap(isnan(corrMap)) = noCoverageValue;
+            obj.corr = corrMap;
             obj.azi = azimuth;
             obj.elev = elevation;
         end
@@ -41,6 +47,13 @@ classdef CorrectionMap
             corrValues = interp2(obj.azi,obj.elev,obj.corr,azimuth,elevation,interpolationMethod);
         end
         function f = plot(obj,plotType,caxisLimits)
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Method to create correction map plot.
+        %
+        % plotType - 'skyplot' or 'regular'
+        % caxisLimits - plot limits in milimeters
+        %
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             if nargin < 3
                 caxisLimits = obj.getCorrLimits();
                 if nargin < 2
@@ -52,8 +65,8 @@ classdef CorrectionMap
             validateattributes(caxisLimits,{'double'},{'size',[1,2],'increasing'},3)
             
             % Replace nan by 0 (only for plotting purposes)
-            corrForPlotting = obj.corr;
-            corrForPlotting(isnan(corrForPlotting)) = 0;
+            corrForPlotting = 1e3*obj.corr;
+            corrForPlotting(isnan(corrForPlotting)) = 1000;
             
             f = figure();
             plotTitle = sprintf('Correction grid (%s, %s)',obj.gnss,obj.obsType);
@@ -74,26 +87,38 @@ classdef CorrectionMap
                     ap = get(a,'Position');
                     set(a,'Position',ap+[0,-0.05,0,0]);
                     title(plotTitle,'Position',[108,0],'FontSize',12);
+                    caxis(caxisLimits);
+                    c = colorbar();
+                    set(c,'Box',matlab.lang.OnOffSwitchState('on'));
+                    ylabel(c,'Correction value (mm)');
+                    tmpPos = c.Position;
+                    cX = tmpPos(1); cY = tmpPos(2);
+                    cW = tmpPos(3); cH = tmpPos(4);
+                    set(c,'Position',[cX+0.035,cY+0.08,0.8*cW,0.8*cH]);
                 case 'regular'
                     f.Position = [681,381,896,598];
                     imagesc(corrForPlotting);
-                    grid on;
+                    grid on; hold on;
                     set(gca,'YDir','normal');
-                    colormap(polarmap());
+                    colormap([polarmap(); 0,0,0]);
                     xlabel('Azimuth (deg)');
                     ylabel('Elevation (deg)');
                     title(plotTitle,'FontSize',12);
-                    xlim([min(obj.azi),max(obj.azi)]);
-                    ylim([min(obj.elev),max(obj.elev)]);
+                    dAzi = mode(diff(obj.azi));
+                    dElev = mode(diff(obj.elev));
+                    xRange = [min(obj.azi),max(obj.azi)/dAzi];
+                    yRange = [min(obj.elev),max(obj.elev)/dElev];
+                    xlim(xRange);
+                    ylim(yRange);
+                    caxis(caxisLimits);
+                    c = colorbar();
+                    set(c,'Box',matlab.lang.OnOffSwitchState('on'));
+                    ylabel(c,'Correction value (mm)');
+                    tmpPos = c.Position;
+                    cX = tmpPos(1); cY = tmpPos(2);
+                    cW = tmpPos(3); cH = tmpPos(4);
+                    set(c,'Position',[cX+0.06,cY+0.08,0.8*cW,0.8*cH]);
             end
-            caxis(caxisLimits);
-            c = colorbar();
-            set(c,'Box',matlab.lang.OnOffSwitchState('on'));
-            ylabel(c,'Correction value (mm)');
-            tmpPos = c.Position;
-            cX = tmpPos(1); cY = tmpPos(2);
-            cW = tmpPos(3); cH = tmpPos(4);
-            set(c,'Position',[cX+0.035,cY+0.08,0.8*cW,0.8*cH]);
         end
     end
     methods (Access = private)

@@ -632,7 +632,7 @@ classdef OBSRNX
             validateattributes(correctionMaps,{'CorrectionMap'},{'size',[1,nan]},2)
             correctionMapsGnss = arrayfun(@(x) x.gnss,correctionMaps);
             uCorrectionMapsGnss = unique(correctionMapsGnss);
-            assert(all(ismember(correctionMapsGnss,obj.gnss)),'')
+            assert(all(ismember(correctionMapsGnss,obj.gnss)));
             
             % Looping through satellite systems
             for i = 1:length(uCorrectionMapsGnss)
@@ -648,7 +648,7 @@ classdef OBSRNX
                     % Looping through satellites for given satellite system
                     for iSat = 1:length(obj.sat.(gnss_))
                         satNo = obj.sat.(gnss_)(iSat);
-                        lam = getWavelength(gnss_,str2num(obsType_(2)),satNo);
+                        lam = getWavelength(gnss_,sscanf(obsType_(2),'%d'),satNo);
                         obsTypeSelIdx = find(strcmp(obsType_,obj.obsTypes.(gnss_)));
                         [elevation,~,~] = obj.getLocal(gnss_,satNo);
                         
@@ -659,7 +659,15 @@ classdef OBSRNX
                             [elevation,azimuth,~] = obj.getLocal(gnss_,satNo,obsTimeSel);
                             phaseCorrectionInMeters = corrMapsGnss(j).getCorrection(azimuth,elevation);
                             phaseCorrectionCYCLES = phaseCorrectionInMeters/lam;
-                        
+                            
+%                             % Show plot of applied correction
+%                             figure();
+%                             plot(elevation,1e3*phaseCorrectionInMeters,'.-','DisplayName','MP corr'); hold on; grid on; box on;
+%                             isNanCorr = isnan(phaseCorrectionInMeters);
+%                             %plot(elevation(isNanCorr),1e3*phaseCorrectionInMeters(isNanCorr),'ro','DisplayName','NaN value');
+%                             title(sprintf('Multipath correction for %s%02d (%s), not corrected: %.2f%%',gnss_,satNo,obsType_,100*nnz(isNanCorr)/length(phaseCorrectionInMeters)));
+%                             xlabel('Elevation (deg)'); ylabel('Multipath correction (mm)');
+                            
                             % Subtracting correction from original observations
                             obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) = obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) - phaseCorrectionCYCLES;
                         end
