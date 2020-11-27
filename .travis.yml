@@ -1,3 +1,7 @@
+env:
+  jobs:
+    - USE_NETWORK=true
+
 language: matlab
 matlab:
   - latest
