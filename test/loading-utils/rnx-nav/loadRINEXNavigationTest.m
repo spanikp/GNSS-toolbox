@@ -4,7 +4,7 @@ classdef loadRINEXNavigationTest < matlab.unittest.TestCase
     end
     properties (TestParameter)
         gnss = {'G','R','E','C'};
-        ext = {'n','g','l','c'};        
+        ext = {'n','g','l','c'};
     end
     methods (TestClassSetup)
         function setupPath(obj)
@@ -26,7 +26,7 @@ classdef loadRINEXNavigationTest < matlab.unittest.TestCase
             obj.verifyEqual(brdc.gnss,gnss);
         end
         function testDownloadNavMessage(obj,gnss)
-            downloadBroadcastMessage(gnss,datenum([2020 11 20]),obj.tmpFolder,true))
+            downloadBroadcastMessage(gnss,datenum([2020 11 20]),obj.tmpFolder,true)
         end
     end
 end
