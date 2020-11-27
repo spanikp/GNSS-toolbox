@@ -72,22 +72,11 @@ end
 
 % Downloading file
 fprintf(' -> %s [downloading]', filename);
-try 
-    % Default method using Matlab mget function
-    server = ftp(servername);    % Open FTP server
-    cd(server, path);            % Change directory at FTP server
-    mget(server,filename);       % Download file
-catch        
-    fprintf('\nWarning:          Matlab mget method for file %s failed.\n', filename);
-    try
-        % Alternative method using Matlab websave function
-        link = ['ftp://', servername, '/', path, '/', filename];
-        websave(link, name);
-    catch        
-        fprintf('Warning:          Matlab urlwrite method for file %s failed.\n', filename);
-        error('Error:            File %s not downloaded!\n', filename);
-    end
-end
+
+% Default method using Matlab mget function
+server = ftp(servername);    % Open FTP server
+cd(server, path);            % Change directory at FTP server
+mget(server,filename);       % Download file
 
 % Rename navigation message file
 gnssExtension = containers.Map({'G','R','E','C'},{'n','g','l','c'});

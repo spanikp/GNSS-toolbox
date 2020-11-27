@@ -8,7 +8,7 @@ classdef loadRINEXNavigationTest < matlab.unittest.TestCase
     end
     methods (TestClassSetup)
         function setupPath(obj)
-			addpath(genpath('../../../src'));
+            addpath(genpath('../../../src'));
             current_dir = fileparts(mfilename('fullpath'));
             obj.tmpFolder = fullfile(current_dir,'tmpNavMessage');
             if ~exist(obj.tmpFolder,'dir'), mkdir(obj.tmpFolder); end
@@ -26,7 +26,7 @@ classdef loadRINEXNavigationTest < matlab.unittest.TestCase
             obj.verifyEqual(brdc.gnss,gnss);
         end
         function testDownloadNavMessage(obj,gnss)
-            obj.assumeFail(downloadBroadcastMessage(gnss,datenum([2020 11 20]),obj.tmpFolder,true));
+            downloadBroadcastMessage(gnss,datenum([2020 11 20]),obj.tmpFolder,true))
         end
-	end
+    end
 end
