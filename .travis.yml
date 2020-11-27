@@ -1,6 +1,12 @@
+os:
+  - linux
+
 env:
   jobs:
     - USE_NETWORK=true
+
+before_install:
+  - sudo apt-get install -y p7zip-full
 
 language: matlab
 matlab:
