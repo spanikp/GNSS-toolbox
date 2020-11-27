@@ -684,10 +684,10 @@ if r > 1 || m > 1
    % draw radial grid lines in azimuthal direction (meridians)
    hold on;
    if length(azmgrid) > 2
-      xr = xi(:,1:u:end);
-      yr = yi(:,1:u:end);
-      zr = zi(:,1:u:end);
-      plot3(xr,yr,zr,p.gridstyle,'Color',p.gridcolor,'LineWidth',1);
+      xr = xi(:,1:u:end); xrr = xr(10:end,1:end-1);
+      yr = yi(:,1:u:end); yrr = yr(10:end,1:end-1);
+      zr = zi(:,1:u:end); zrr = zr(10:end,1:end-1);
+      plot3(xrr,yrr,zrr,p.gridstyle,'Color',p.gridcolor,'LineWidth',1);
    end
 
    % Draw azimuthal grid lines in radial direction (concentric arcs)
@@ -695,7 +695,7 @@ if r > 1 || m > 1
       xm = xi(1:v:end,:);
       ym = yi(1:v:end,:);
       zm = zi(1:v:end,:);
-      plot3(xm',ym',zm',p.gridstyle,'Color',p.gridcolor,'LineWidth',1);
+      plot3(xm',ym',zm',p.gridstyle,'Color',p.gridcolor,'LineWidth',0.5);
    end
    hold off;
 end

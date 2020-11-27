@@ -25,7 +25,7 @@ classdef OBSRNX
         % (for many static RINEX files this flags are empty)
         epochFlags (1,1) struct = struct('OK',[],'PowerFailure',[],'StartMovingAntenna',[],...
                                          'NewStationOccupation',[],'HeaderInfo',[],...
-                                         'ExternalEvent',[],'CycleSlipRecord',[]);
+                                         'ExternalEvent',[],'CycleSlipRecord',[],'rawValue',[]);
         
         % recClockOffset is given for every observation epoch
         % (for many static files this value is not set)
@@ -380,9 +380,6 @@ classdef OBSRNX
                            mean(d(10:end))
                            ylim([-3 3])
                            
-                           
-                           %cs1 = find(abs(diff2) > 10);
-                           %polyfit(,diff2,2)
                        end
                    end
                end
@@ -503,7 +500,7 @@ classdef OBSRNX
         end
     end
     methods
-        % Removal functions/slicing functions
+        % Removal functions
         function obj = removeSats(obj,gnss_,satsToRemove)
             observedSats = obj.sat.(gnss_);
             removalSatsIdx = ismember(observedSats,satsToRemove);
@@ -577,6 +574,8 @@ classdef OBSRNX
                 obj = obj.removeGNSSs(rgnsses(i));
             end
         end
+        
+        % Get values functions
         function obj = getTimeSelection(obj,datetimeArray)
             assert(size(datetimeArray,2) == 1 & isa(datetimeArray,'datetime'),'Input "datetimeArray" has to be column vector of type "datetime"!')
             tCurrent = datetime(obj.t(:,9),'ConvertFrom','datenum');
@@ -626,6 +625,73 @@ classdef OBSRNX
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             dt = diff(datetime(obj.t(:,9),'ConvertFrom','datenum'));
             ts = seconds(mode(dt));
+        end
+
+        % Modify observation function
+        function obj = applyCorrectionMap(obj,correctionMaps)
+            validateattributes(correctionMaps,{'CorrectionMap'},{'size',[1,nan]},2)
+            correctionMapsGnss = arrayfun(@(x) x.gnss,correctionMaps);
+            uCorrectionMapsGnss = unique(correctionMapsGnss);
+            assert(all(ismember(correctionMapsGnss,obj.gnss)));
+            
+            % Looping through satellite systems
+            for i = 1:length(uCorrectionMapsGnss)
+                gnss_ = uCorrectionMapsGnss(i);
+                selGnss = correctionMapsGnss == gnss_;
+                corrMapsGnss = correctionMaps(selGnss);
+                
+                % Looping through provided correction maps (for specific satellite system)
+                for j = 1:length(corrMapsGnss)
+                    obsType_ = corrMapsGnss(j).obsType;
+                    fprintf('Applying correction to %s (%s)\n',gnss_,obsType_);
+                    
+                    % Looping through satellites for given satellite system
+                    for iSat = 1:length(obj.sat.(gnss_))
+                        satNo = obj.sat.(gnss_)(iSat);
+                        lam = getWavelength(gnss_,sscanf(obsType_(2),'%d'),satNo);
+                        obsTypeSelIdx = find(strcmp(obsType_,obj.obsTypes.(gnss_)));
+                        [elevation,~,~] = obj.getLocal(gnss_,satNo);
+                        
+                        obsTimeSel = obj.satTimeFlags.(gnss_)(:,iSat) & ...
+                            obj.obs.(gnss_){iSat}(:,obsTypeSelIdx) ~= 0 & ...
+                            elevation > 0;
+                        if nnz(obsTimeSel) ~= 0
+                            [elevation,azimuth,~] = obj.getLocal(gnss_,satNo,obsTimeSel);
+                            phaseCorrectionInMeters = corrMapsGnss(j).getCorrection(azimuth,elevation);
+                            phaseCorrectionCYCLES = phaseCorrectionInMeters/lam;
+                            
+%                             % Show plot of applied correction
+%                             figure();
+%                             plot(elevation,1e3*phaseCorrectionInMeters,'.-','DisplayName','MP corr'); hold on; grid on; box on;
+%                             isNanCorr = isnan(phaseCorrectionInMeters);
+%                             %plot(elevation(isNanCorr),1e3*phaseCorrectionInMeters(isNanCorr),'ro','DisplayName','NaN value');
+%                             title(sprintf('Multipath correction for %s%02d (%s), not corrected: %.2f%%',gnss_,satNo,obsType_,100*nnz(isNanCorr)/length(phaseCorrectionInMeters)));
+%                             xlabel('Elevation (deg)'); ylabel('Multipath correction (mm)');
+                            
+                            % Subtracting correction from original observations
+                            obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) = obj.obs.(gnss_){iSat}(obsTimeSel,obsTypeSelIdx) - phaseCorrectionCYCLES;
+                        end
+                    end
+                end
+            end
+            
+        end
+        
+        % Exporting function
+        function exportToFile(obj,filename,gnsses,decimateFactor,writeRecClockOffset)
+            if nargin < 5
+                writeRecClockOffset = obj.header.receiver.clockOffsetApplied;
+                if nargin < 4
+                    decimateFactor = 1;
+                    if nargin < 3
+                        gnsses = obj.gnss;
+                    end
+                end
+            end
+            fout = fopen(filename,'w');
+            obj.writeHeader(fout);
+            obj.writeBody(fout,gnsses,writeRecClockOffset);
+            fclose(fout);
         end
     end
     methods (Access = private)
@@ -713,6 +779,8 @@ classdef OBSRNX
                     fprintf('Epoch flag %d: %d records\n',epochFlag,nnz(obj.epochFlags.(epochFlagName)));
                     if epochFlag ~= 0
                         epochRecordsToRemove = epochRecordsToRemove + nnz(obj.epochFlags.(epochFlagName));
+                    else
+                        obj.epochFlags.rawValue = epochRecords(:,7);
                     end
                 end
                 fprintf('Remove non-zero epoch flags: %d records removed\n',epochRecordsToRemove);
@@ -847,6 +915,15 @@ classdef OBSRNX
             end
             obj.consistencyCheckSatpos();
         end
+        function n = getSatelliteCountInEpoch(obj,epochIndex,gnsses)
+            if nargin < 3
+                gnsses = obj.gnss;
+            end
+            n = 0;
+            for i = 1:length(gnsses)
+                n = n + sum(obj.satTimeFlags.(gnsses(i))(epochIndex,:));
+            end
+        end
         function consistencyCheckObs(obj)
             for i = 1:numel(obj.gnss)
                 gnss_ = obj.gnss(i);
@@ -877,6 +954,205 @@ classdef OBSRNX
                 assert(isequal([nt,ns],size(obj.satpos(i).satTimeFlags)),'Inconsistency in "satpos" struct found!')
                 assert(isequal([1,ns],size(obj.satpos(i).SVclockCorr)),'Inconsistency in "satpos" struct found!')
                 assert(isequal([nt; 1]*ones(1,ns),cell2mat(cellfun(@(x) size(x)',obj.satpos(i).SVclockCorr,'UniformOutput',false))),'Inconsistency in "obs" struct found!')
+            end
+        end
+        function writeHeader(obj,fout)
+            % Helper variables
+            h = obj.header;
+            if length(obj.gnss) == 1
+                obsRinexType = obj.gnss;
+            else
+                obsRinexType = 'M';
+            end
+            utcStr = datestr(datetime('now','TimeZone','Z'),'YYYYmmdd HHMMSS UTC ');
+            if h.receiver.clockOffsetApplied
+                rcvClockOffsetApplied = '1';
+            else
+                rcvClockOffsetApplied = '0';
+            end
+            
+            % Write basic RINEX metadata
+            fprintf(fout,'%9s%s%-20s%-20s%-20s\n',h.version,sp(11),'OBSERVATION DATA',obsRinexType,'RINEX VERSION / TYPE');
+            fprintf(fout,'%-20s%-20s%-20s%-20s\n','Matlab OBSRNX',getenv('username'),utcStr,'PGM / RUN BY / DATE');
+            fprintf(fout,'%s%-20s\n',repmat('-',[1,60]),'COMMENT');
+            
+            % Write marker info part
+            fprintf(fout,'%-60s%-20s\n',h.marker.name,'MARKER NAME');
+            fprintf(fout,'%-60s%-20s\n',h.marker.number,'MARKER NUMBER');
+            fprintf(fout,'%-60s%-20s\n',h.marker.type,'MARKER TYPE');
+            
+            % Observer/agency
+            fprintf(fout,'%-20s%-40s%-20s\n',h.observer,h.agency,'OBSERVER / AGENCY');
+            
+            % Receiver info
+            fprintf(fout,'%-20s%-20s%-20s%-20s\n',h.receiver.serialnumber,h.receiver.type,h.receiver.version,'REC # / TYPE / VERS');
+            fprintf(fout,'%-20s%-40s%-20s\n',h.antenna.serialnumber,h.antenna.type,'ANT # / TYPE');
+            fprintf(fout,'%14.4f%14.4f%14.4f%18s%-20s\n',obj.recpos(1),obj.recpos(2),obj.recpos(3),sp(18),'APPROX POSITION XYZ');
+            fprintf(fout,'%14.4f%14.4f%14.4f%18s%-20s\n',h.antenna.offset(1),h.antenna.offset(2),h.antenna.offset(3),sp(18),'ANTENNA: DELTA H/E/N');
+            fprintf(fout,'%6s%-54s%-20s\n',rcvClockOffsetApplied,sp(54),'RCV CLOCK OFFS APPL');
+            
+            % Write 'SYS / PHASE SHIFT' information
+            for i = 1:length(h.sysPhaseShifts)
+                fprintf(fout,'%s %3s%9.5f%s%-20s\n',h.sysPhaseShifts(i).gnss,...
+                    h.sysPhaseShifts(i).signal,h.sysPhaseShifts(i).value,sp(46),'SYS / PHASE SHIFT');
+            end
+            
+            % Leap seconds, SNR units
+            fprintf(fout,'%6d%54s%-20s\n',h.leapSeconds,sp(54),'LEAP SECONDS');
+            fprintf(fout,'%-20s%40s%-20s\n',h.signalStrengthUnit,sp(40),'SIGNAL STRENGTH UNIT');
+            
+            % Write Glonass frequency slots
+            if ismember('R',obj.gnss)
+                obj.writeGlonassFreqSlots(fout);
+                
+                % Write 'GLONASS COD/PHS/BIS' information
+                fprintf(fout,'%s\n',h.glonassCodeBias);
+            end
+            
+            % SYS / # / OBS TYPES for several systems
+            nSatAll = 0;
+            for i = 1:length(obj.gnss)
+                gnss_ = obj.gnss(i);
+                nSatAll = nSatAll + length(obj.sat.(gnss_));
+                obj.writeHeaderObsTypes(fout,gnss_,obj.obsTypes.(gnss_));
+            end
+            fprintf(fout,'%6d%54s%-20s\n',nSatAll,sp(54),'# OF SATELLITES');
+            
+            % Write 'PRN / # OF OBS'
+            for i = 1:length(obj.gnss)
+                gnss_ = obj.gnss(i);
+                for j = 1:length(obj.sat.(gnss_))
+                    satNo = obj.sat.(gnss_)(j);
+                    obsCounts = sum(obj.obs.(gnss_){j} ~= 0);
+                    obj.writeHeaderNoObs(fout,gnss_,satNo,obsCounts);
+                end
+            end
+            
+            % Write interval and times of first/last observation
+            timeSystem = 'GPS'; t1 = obj.t(1,:); t2 = obj.t(end,:);
+            fprintf(fout,'%10.3f%50s%-20s\n',h.interval,sp(50),'INTERVAL');
+            fprintf(fout,'%6d%6d%6d%6d%6d%13.7f%5s%3s%9s%-20s\n',t1(1),t1(2),t1(3),t1(4),t1(5),t1(6),sp(5),timeSystem,sp(9),'TIME OF FIRST OBS');
+            fprintf(fout,'%6d%6d%6d%6d%6d%13.7f%5s%3s%9s%-20s\n',t2(1),t2(2),t2(3),t2(4),t2(5),t2(6),sp(5),timeSystem,sp(9),'TIME OF LAST OBS');
+            
+            % End header section
+            fprintf(fout,'%60s%-20s\n',sp(60),'END OF HEADER');
+
+        end
+        function writeHeaderObsTypes(obj,fout,gnss_,obsTypesCell)
+            n1 = length(obsTypesCell);
+            n_pad = 13 - rem(n1,13);
+            if rem(n_pad,13) == 0
+                n_pad = 0;
+            end
+            obsTypesCell = [obsTypesCell,repmat({'   '},[1,n_pad])];
+            nLines = length(obsTypesCell)/13;
+            assert(rem(nLines,1)==0,'Unexpected error happened!');
+            for i = 1:nLines
+                obsTypesCellRowStr = [' ', strjoin(obsTypesCell(13*(i-1)+1:13*i), ' '),'  '];
+                if i == 1
+                    fprintf(fout,'%s  %3d%54s%-20s\n',gnss_,n1,obsTypesCellRowStr,'SYS / # / OBS TYPES');
+                else
+                    fprintf(fout,'      %54s%-20s\n',obsTypesCellRowStr,'SYS / # / OBS TYPES');
+                end
+            end
+        end
+        function writeGlonassFreqSlots(obj,fout)
+            if contains(obj.gnss,'R')
+                glonassFreqSlots = obj.header.glonassFreqSlots;
+                nGlonass = size(glonassFreqSlots,1);
+                nGlonassPad = 8 - rem(nGlonass,8);
+                if rem(nGlonassPad,8) == 0
+                    nGlonassPad = 0;
+                end
+                glonassFreqSlots = [glonassFreqSlots;zeros(nGlonassPad,2)];
+                nLines = size(glonassFreqSlots,1)/8;
+                assert(rem(nLines,1)==0,'Unexpected error happened!');
+                for i = 1:nLines
+                    if i == 1
+                        lineToWrite = sprintf('%3d',nGlonass);
+                    else
+                        lineToWrite = '   ';
+                    end
+                    for j = (i*8-7):(i*8)
+                        lineToWrite = [lineToWrite,sprintf(' R%02d%3d',glonassFreqSlots(j,1),glonassFreqSlots(j,2))];
+                        lineToWrite = strrep(lineToWrite,' R00  0','       ');
+                    end
+                    fprintf(fout,'%s %-20s\n',lineToWrite,'GLONASS SLOT / FRQ #');
+                end
+            end
+        end
+        function writeHeaderNoObs(obj,fout,gnss_,satNo,nSatObsCount)
+            nSatObsCount(nSatObsCount > 99999) = 99999; % Handle format overflow (RINEX 3.04, Appendix A12, p.66) 
+            zeroObsCount = nSatObsCount == 0;
+            nSatObsCount = num2cell(nSatObsCount);
+            nSatObsCount(zeroObsCount) = {[]};
+            n1 = length(nSatObsCount);
+            n_pad = 9 - rem(n1,9);
+            if rem(n_pad,9) == 0
+                n_pad = 0;
+            end
+            nSatObsCountStr = cellfun(@(x) sprintf('%6d',x),nSatObsCount,'UniformOutput',false);
+            nSatObsCountStr = [nSatObsCountStr,repmat({sp(6)},[1,n_pad])];
+            nLines = length(nSatObsCountStr)/9;
+            assert(rem(nLines,1)==0,'Unexpected error happened!');
+            for i = 1:nLines
+                nSatObsCountRowStr = strjoin(nSatObsCountStr(9*(i-1)+1:9*i),'');
+                if i == 1
+                    fprintf(fout,'   %s%02d%54s%-20s\n',gnss_,satNo,nSatObsCountRowStr,'PRN / # OF OBS');
+                else
+                    fprintf(fout,'%6s%54s%-20s\n',sp(6),nSatObsCountRowStr,'PRN / # OF OBS');
+                end
+            end
+        end
+        function writeBody(obj,fout,gnnses,writeRecClockOffset)
+            n_epochs = size(obj.t,1);
+            for i = 1:n_epochs
+                obj.writeEpochTime(fout,i,writeRecClockOffset);
+                obj.writeEpochObservations(fout,i,gnnses);
+            end
+        end
+        function writeEpochTime(obj,fout,epochIndex,writeRecClockOffset)
+            tE = obj.t(epochIndex,1:6);
+            nSats = obj.getSatelliteCountInEpoch(epochIndex);
+            if writeRecClockOffset
+                recClockOffsetAtEpoch = obj.recClockOffset(epochIndex);
+                fprintf(fout,'> %4d %02d %02d %02d %02d%11.7f  %1d%3d%6s%15.12f\n',...
+                    tE(1),tE(2),tE(3),tE(4),tE(5),tE(6),obj.epochFlags.rawValue(epochIndex),nSats,sp(6),recClockOffsetAtEpoch);
+            else
+                fprintf(fout,'> %4d %02d %02d %02d %02d%11.7f  %1d%3d\n',...
+                    tE(1),tE(2),tE(3),tE(4),tE(5),tE(6),obj.epochFlags.rawValue(epochIndex),nSats); 
+            end
+        end
+        function writeEpochObservations(obj,fout,epochIndex,gnnses)
+            for i = 1:length(gnnses)
+                gnss_ = gnnses(i);
+                sats_in_epoch_idx = find(obj.satTimeFlags.(gnss_)(epochIndex,:));
+                for j = 1:length(sats_in_epoch_idx)
+                    satNo = obj.sat.(gnss_)(sats_in_epoch_idx(j));
+                    epochObs = obj.obs.(gnss_){sats_in_epoch_idx(j)}(epochIndex,:);
+                    epochObsAvailable = epochObs ~= 0;
+                    epochObs = epochObs(1:find(epochObsAvailable,1,'last'));
+                    
+                    % Split processing if quality indicatos are available or not
+                    if isempty(obj.obsqi)
+                        epochStr = sprintf(repmat('%14.3f  ',[1,length(epochObs)]),epochObs);
+                        epochStr = strrep(epochStr,'         0.000','              ');
+                    else
+                        epochStr = cell(1,length(epochObs));
+                        for io = 1:length(epochObs)
+                            qi = obj.obsqi.(gnss_){sats_in_epoch_idx(j)}(epochIndex,2*io-1:2*io);
+                            epochStr{io} = sprintf('%14.3f%2s',epochObs(io),qi);
+                        end
+                        epochStr = strjoin(epochStr,'');
+                        epochStr = strrep(epochStr,'         0.000','              ');
+                    end
+                    
+                    % Handle trailing spaces
+                    if strcmp(epochStr(end-1:end),'  ')
+                        epochStr = epochStr(1:end-2);
+                    end
+                    fprintf(fout,'%s%02d%s\n',gnss_,satNo,epochStr);
+                end
             end
         end
     end

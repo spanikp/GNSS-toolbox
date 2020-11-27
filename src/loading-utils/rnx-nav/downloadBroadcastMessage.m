@@ -38,13 +38,25 @@ yy = datestr(mTime,'yy');
 % EC - using IGS BKG server - filename is RINEX v3
 switch satsys
     case 'G'
-        servername = 'cddis.gsfc.nasa.gov';
-        path = ['gps/data/daily/', yyyy, '/', doy, '/', yy, 'n'];
-        filename = ['brdc', doy, '0.', yy, 'n.Z'];
+        % Using CDDIS -> needs to be fixed due to transition to HTTPS
+        %servername = 'cddis.gsfc.nasa.gov';
+        %path = ['gps/data/daily/', yyyy, '/', doy, '/', yy, 'n'];
+        %filename = ['brdc', doy, '0.', yy, 'n.Z'];
+        
+        % Alternatively use BKG FTP server
+        servername = 'igs.bkg.bund.de';
+        path = ['EUREF/BRDC/', yyyy, '/', doy, '/'];
+        filename = ['BRDC00WRD_R_', yyyy, doy, '0000_01D_GN.rnx.gz'];
     case 'R'
-        servername = 'cddis.gsfc.nasa.gov';
-        path = ['gps/data/daily/', yyyy, '/', doy, '/', yy, 'g'];
-        filename = ['brdc', doy, '0.', yy, 'g.Z'];
+        % Using CDDIS -> needs to be fixed due to transition to HTTPS
+        %servername = 'cddis.gsfc.nasa.gov';
+        %path = ['gps/data/daily/', yyyy, '/', doy, '/', yy, 'g'];
+        %filename = ['brdc', doy, '0.', yy, 'g.Z'];
+        
+        % Alternatively use BKG FTP server
+        servername = 'igs.bkg.bund.de';
+        path = ['EUREF/BRDC/', yyyy, '/', doy, '/'];
+        filename = ['BRDC00WRD_R_', yyyy, doy, '0000_01D_RN.rnx.gz'];
     case 'E'
         servername = 'igs.bkg.bund.de';
         path = ['EUREF/BRDC/', yyyy, '/', doy, '/'];
@@ -60,26 +72,17 @@ end
 
 % Downloading file
 fprintf(' -> %s [downloading]', filename);
-try 
-    % Default method using Matlab mget function
-    server = ftp(servername);    % Open FTP server
-    cd(server, path);            % Change directory at FTP server
-    %sf = struct(server);
-    % The following line is needed in my case due to the issue with passive Matlab connection (https://undocumentedmatlab.com/blog/solving-an-mput-ftp-hang-problem) 
-    %sf.jobject.enterLocalPassiveMode();
-    
-    mget(server,filename);       % Download file
-catch        
-    fprintf('\nWarning:          Matlab mget method for file %s failed.\n', filename);
-    try
-        % Alternative method using Matlab websave function
-        link = ['ftp://', servername, '/', path, '/', filename];
-        websave(link, name);
-    catch        
-        fprintf('Warning:          Matlab urlwrite method for file %s failed.\n', filename);
-        error('Error:            File %s not downloaded!\n', filename);
-    end
-end
+
+% Default method using Matlab mget function
+server = ftp(servername);    % Open FTP server
+cd(server, path);            % Change directory at FTP server
+mget(server,filename);       % Download file
+
+% Rename navigation message file
+gnssExtension = containers.Map({'G','R','E','C'},{'n','g','l','c'});
+filenamev2 = sprintf('brdc%s0.%s%s.gz',doy,yy,gnssExtension(satsys));
+fprintf('Renaming file:    %s -> %s\n', filename(1:end-3), filenamev2);
+movefile(filename,filenamev2);
 
 % extract file
 if extract
@@ -90,21 +93,10 @@ if extract
 	else
         fprintf('[extract]\n');
         % unix(['gzip -d -f ', filename]); % If gzip is installed
-        system(['7z e ', filename]);       % If 7z is installed
+        system(['7z e ', filenamev2]);       % If 7z is installed
         
         % Remove original navigation message
-        delete(filename)
-        
-        % Rename navigation message of EC systems
-        if contains('EC',satsys)
-            if satsys == 'E'
-                filenamev2 = ['brdc', doy, '0.', yy, 'l'];
-            else
-                filenamev2 = ['brdc', doy, '0.', yy, 'c'];
-            end
-            fprintf('Renaming file:    %s -> %s\n', filename(1:end-3), filenamev2);
-            movefile(filename(1:end-3),filenamev2);
-        end
+        delete(filenamev2)
 	end
 end
 

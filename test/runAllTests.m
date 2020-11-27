@@ -5,20 +5,30 @@ classdef runAllTests
             import matlab.unittest.TestRunner
             import matlab.unittest.plugins.ToUniqueFile;
             import matlab.unittest.plugins.TAPPlugin
-			addpath(genpath('../src'))
+            import matlab.unittest.plugins.CodeCoveragePlugin
+            import matlab.unittest.plugins.codecoverage.CoberturaFormat
+            
+            addpath(genpath('../src'))
             
             % Create test suite
-            suite = TestSuite.fromFolder(pwd,'IncludingSubfolders',true);
+            suite = TestSuite.fromFolder(pwd(),'IncludingSubfolders',true);
             
             % Run without test report
-            run(suite)
+            % run(suite)
             
-            % % Run with Runner object to create test report
-            %runner = TestRunner.withTextOutput();
-            %stream = ToUniqueFile('.','WithPrefix','testReport','WithExtension','.tap');
-            %plugin = TAPPlugin.producingVersion13(stream);
-            %runner.addPlugin(plugin);
-            %runner.run(suite)
+            % Add plugin to create test report
+            runner = TestRunner.withTextOutput();
+            stream = ToUniqueFile('.','WithPrefix','testResultsReport','WithExtension','.tap');
+            pluginTestOutput = TAPPlugin.producingVersion13(stream);
+            runner.addPlugin(pluginTestOutput);
+            
+            % Add plugin to generate code coverage report
+            reportFormat = CoberturaFormat('testCoverageReport.xml');
+            pluginTestCoverage = CodeCoveragePlugin.forFolder('../src',...
+                'IncludingSubfolders',true,'Producing',reportFormat);
+            runner.addPlugin(pluginTestCoverage);
+            
+            runner.run(suite)
         end
     end
 end

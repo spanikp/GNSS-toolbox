@@ -18,6 +18,9 @@ classdef OBSRNXheader
         observer (1,:) char
         agency (1,:) char
         signalStrengthUnit (1,:) char
+        glonassFreqSlots (:,2) double
+        glonassCodeBias (1,:) char
+        sysPhaseShifts (:,1) struct
     end
    
     methods
@@ -38,6 +41,8 @@ classdef OBSRNXheader
             % Initialize rnx structure
             lineIndex = 0;
             sysObsTypesBuffer = {};
+            glonassFreqSlotsTemp = [];
+            firstGlonassSlotLine = true;
             while 1
                 lineIndex = lineIndex + 1;
                 %line = fileBuffer{lineIndex};
@@ -97,9 +102,24 @@ classdef OBSRNXheader
                 if contains(line,'INTERVAL')
                     obj.interval = sscanf(line(1:60),'%f');
                 end
-                
                 if contains(line,'SYS / # / OBS TYPES')
                     sysObsTypesBuffer = [sysObsTypesBuffer; line];
+                end
+                if contains(line,'GLONASS SLOT / FRQ #')
+                    if firstGlonassSlotLine
+                        firstGlonassSlotLine = false;
+                        glonassFreqSlotsNoSats = sscanf(line(1:3),'%d');
+                    end
+                    glonassFreqSlotsTemp = [glonassFreqSlotsTemp; reshape(line(5:60),[7,8])'];
+                end
+                if contains(line,'SYS / PHASE SHIFT')
+                    i = length(obj.sysPhaseShifts)+1;
+                    obj.sysPhaseShifts(i,1).gnss = line(1);
+                    obj.sysPhaseShifts(i,1).signal = line(3:5);
+                    obj.sysPhaseShifts(i,1).value = sscanf(line(6:14),'%f');
+                end
+                if contains(line,'GLONASS COD/PHS/BIS')
+                    obj.glonassCodeBias = line;
                 end
                 
                 % Breaks if lineIndex reaches 'END OF HEADER'
@@ -110,6 +130,31 @@ classdef OBSRNXheader
             end
             obj = obj.parseObsTypes(sysObsTypesBuffer);
             obj.printSummary();
+            
+            % Parse GLONASS frequency slots
+            if ~firstGlonassSlotLine
+                for i = 1:size(glonassFreqSlotsTemp,1)
+                    satNo = sscanf(glonassFreqSlotsTemp(i,2:3),'%d');
+                    freqSlot = sscanf(glonassFreqSlotsTemp(i,4:6),'%d');
+                    if isempty(satNo)
+                        break
+                    else
+                        obj.glonassFreqSlots(i,:) = [satNo, freqSlot];
+                    end
+                end
+                assert(glonassFreqSlotsNoSats == size(obj.glonassFreqSlots,1),'GLONASS SLOTs / FRQ # mismatch!');
+            end
+            
+            % Raise warning if GLONASS specific records are missing in RINEX header
+            if ismember('R',obj.gnss)
+                if isempty(obj.glonassCodeBias)
+                    warning('Mandatory header record "GLONASS COD/PHS/BIS" not provided. Zero Glonass code biases used!');
+                end
+                if isempty(obj.glonassFreqSlots)
+                    warning('Mandatory header record "GLONASS SLOT / FRQ #" not provided!');
+                end
+            end
+            
             fclose(finp);
         end
         function printSummary(obj)
