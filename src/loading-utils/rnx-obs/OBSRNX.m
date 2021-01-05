@@ -144,7 +144,7 @@ classdef OBSRNX
                 localRefPoint = obj.recpos;
                 satList = obj.sat.(s);
                 satFlags = obj.satTimeFlags.(s);
-                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags);
+                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags,obj.header.leapSeconds);
             end
             
             % Consistency checks
