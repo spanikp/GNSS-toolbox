@@ -1,6 +1,7 @@
 classdef OBSRNXtest < matlab.unittest.TestCase
     properties
         obsrnx
+        obsrnxSatpos
         obsrnxqi
         antex
     end
@@ -76,6 +77,11 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.verifyEqual(oldRecPos(1)+dH*cosd(lat)*cosd(lon),obj.obsrnx.recpos(1),'Abstol',1e-10);
             obj.verifyEqual(oldRecPos(2)+dH*cosd(lat)*sind(lon),obj.obsrnx.recpos(2),'Abstol',1e-10);
             obj.verifyEqual(oldRecPos(3)+dH*sind(lat),obj.obsrnx.recpos(3),'Abstol',1e-10);
+        end
+        function testMakeSkyplotAssert(obj)
+            % Method 'makeSkyplot' should raise assertion if 'satpos' element is empty
+            % (no satellite positions are available)
+            obj.verifyError(@() obj.obsrnx.makeSkyplot(),'ValidationError:SatellitePostionsNotAvailable')
         end
         function testComputeBrdc(obj)
             obj.obsrnx = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
@@ -219,6 +225,19 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.obsrnx.exportToFile(fullfile(pwd(),'testOut.rnx'),gnsses,decimate,false);
             obj.obsrnx.exportToFile(fullfile(pwd(),'testOutWithOffsets.rnx'),gnsses,decimate,writeReceiverOffset);
             obj.obsrnxqi.exportToFile(fullfile(pwd(),'testOutWithQualityIndicators.rnx'));
+        end
+        function testMakeSkyplot(obj)
+            backgroundFile = fullfile(pwd(),'../../other/skyplotTestBackground.png');
+            transparency = 85;
+            gnssSelection = 'GR';
+            %o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
+            %o.saveToMAT(fullfile(pwd(),'testOut.mat'));
+            o = OBSRNX.loadFromMAT(fullfile(pwd(),'testOut.mat'));
+            skyplot1 = o.makeSkyplot(); legend off;
+            skyplot2 = o.makeSkyplot(gnssSelection); legend off;
+            skyplot3 = o.makeSkyplot(gnssSelection,backgroundFile); legend off;
+            skyplot4 = o.makeSkyplot(gnssSelection,backgroundFile,transparency); legend off;
+            %skyplot3.exportToFile('c:\Users\petos\Documents\ST3_PhD\xxx.png','png',300)
         end
     end
     methods (Test, ParameterCombination='sequential')

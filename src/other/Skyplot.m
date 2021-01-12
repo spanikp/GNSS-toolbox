@@ -4,8 +4,6 @@ classdef Skyplot < handle
         labels = {}
         lgd
         cb
-    end
-    properties (Access = private)
         R
     end
     methods
@@ -27,7 +25,7 @@ classdef Skyplot < handle
             set(obj.fig,'Units','centimeters');
             set(obj.fig,'PaperUnits','centimeters');
             set(obj.fig,'PaperPositionMode','Auto');
-            hold on
+            hold on;
             pos = get(obj.fig,'Position');
             set(obj.fig,'PaperSize',[pos(3),pos(4)])
             
@@ -37,7 +35,7 @@ classdef Skyplot < handle
             % Showing figure
             f = imshow(img,'InitialMagnification','fit');
             set(f,'AlphaData',alpha);
-            axis equal off
+            axis equal off;
             
             % Determine fisheye panorama diameter from image size
             obj.R = mean([size(img,1),size(img,2)])/2;
@@ -185,6 +183,13 @@ classdef Skyplot < handle
                     obj.cb.Position = [0.185 0.05 0.54 0.03];
                 end
             end
+        end
+    end
+    methods (Static)
+        function [x,y] = getCartFromPolar(R,elev,azi)
+            r = ((90 - elev)/90)*R;
+            x = R + r.*sind(azi);
+            y = R - r.*cosd(azi);
         end
     end
 end
