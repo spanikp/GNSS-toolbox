@@ -230,9 +230,9 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             backgroundFile = fullfile(pwd(),'../../other/skyplotTestBackground.png');
             transparency = 85;
             gnssSelection = 'GR';
-            %o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
+            o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
             %o.saveToMAT(fullfile(pwd(),'testOut.mat'));
-            o = OBSRNX.loadFromMAT(fullfile(pwd(),'testOut.mat'));
+            %o = OBSRNX.loadFromMAT(fullfile(pwd(),'testOut.mat'));
             skyplot1 = o.makeSkyplot(); legend off;
             skyplot2 = o.makeSkyplot(gnssSelection); legend off;
             skyplot3 = o.makeSkyplot(gnssSelection,backgroundFile); legend off;
