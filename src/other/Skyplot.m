@@ -110,6 +110,41 @@ classdef Skyplot < handle
             scatter(x,y,markerSize,vals,'filled','MarkerFaceAlpha',.5,'MarkerEdgeAlpha',.5,'HandleVisibility','off')
             obj.initializeColorbar();
         end
+        function obj = plotRegion(obj,regionElevation,regionAzimuth,color,transparency,lineStyle)
+            validateattributes(regionElevation,{'double'},{'size',[1,nan]},2);
+            validateattributes(regionAzimuth,{'double'},{'size',[1,nan]},3);
+            if nargin < 6
+                lineStyle = '-';
+                if nargin < 5
+                    transparency = [0.2, 0.2]; % [FaceAlpha, EdgeAlpha]
+                    if nargin < 4
+                        color = 'red';
+                    end
+                end
+            end
+            
+            % Interpolate to spherical coordinates
+            xRegion = []; yRegion = [];
+            pointsInBetween = 20;
+            for i = 1:length(regionElevation)-1
+                if regionElevation(i) == regionElevation(i+1)
+                    elevationRange = repmat(regionElevation(i),[1,pointsInBetween]);
+                else
+                    elevationRange = linspace(regionElevation(i),regionElevation(i+1),pointsInBetween);
+                end
+                if regionAzimuth(i) == regionAzimuth(i+1)
+                    azimuthRange = repmat(regionAzimuth(i),[1,pointsInBetween]);
+                else
+                    azimuthRange = linspace(regionAzimuth(i),regionAzimuth(i+1),pointsInBetween);
+                end
+                [x,y] = obj.polar2cart(elevationRange,azimuthRange);
+                xRegion = [xRegion, x];
+                yRegion = [yRegion, y];
+            end
+            set(0,'CurrentFigure',obj.fig);
+            patch('XData',xRegion,'YData',yRegion,'FaceColor',color,'FaceAlpha',transparency(1),...
+                'EdgeAlpha',transparency(2),'LineStyle',lineStyle,'HandleVisibility','off');
+        end
         function obj = adjustColorbarLimits(obj,limits)
             if ~isempty(obj.cb)
                 set(obj.cb,'Limits',limits)
