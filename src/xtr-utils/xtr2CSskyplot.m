@@ -120,6 +120,12 @@ for i = 1:length(GNScell)
     allGNSSSatPos.azi = [allGNSSSatPos.azi; AZI.(GNScell{i}).vals];
     allGNSSSatPos.ele = [allGNSSSatPos.ele; ELE.(GNScell{i}).vals];
 end
+
+% Check if SNR struct exist (if not then input file not contain required data)
+if ~exist('CS','var')
+    error('Input XTR file "%s" does not contain Cycleslip information!');
+end
+
 allGNSSSatPos.azi = allGNSSSatPos.azi(:);
 allGNSSSatPos.ele = allGNSSSatPos.ele(:);
 selNotNan = ~isnan(allGNSSSatPos.azi) & ~isnan(allGNSSSatPos.ele);
