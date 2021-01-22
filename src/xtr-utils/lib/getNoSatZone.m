@@ -18,7 +18,12 @@ function [x_edge,y_edge] = getNoSatZone(GNSS,pos)
 deg = pi/180;
 DELTA = (0:1:359)*deg;
 R = 6378137;
-[phi0,~,h0] = ecef2geodetic(pos(1),pos(2),pos(3),[R, sqrt(0.00669438002290)]);
+try
+    % If geodetic toolbox available
+    [phi0,~,h0] = ecef2geodetic(pos(1),pos(2),pos(3),[R,sqrt(0.00669438002290)]);
+catch
+    [phi0,~,h0] = cartesianToGeodetic(pos(1),pos(2),pos(3),[R,sqrt(0.00669438002290)]);
+end
 lam0 = 0;
 
 switch GNSS
@@ -41,8 +46,12 @@ end
 X_sat = a.*cos(INC).*cos(DELTA);
 Y_sat = a.*cos(INC).*sin(DELTA);
 Z_sat = ones(1,length(X_sat)).*a.*sin(INC);
-[e,n,u] = ecef2lv(X_sat,Y_sat,Z_sat, phi0, lam0, h0, [R, sqrt(0.00669438002290)]);
-
+try
+    % If geodetic toolbox available
+    [e,n,u] = ecef2enu(X_sat,Y_sat,Z_sat, phi0, lam0, h0, [R, sqrt(0.00669438002290)],'radians');
+catch
+    [e,n,u] = cartesianToLocalVertical(X_sat',Y_sat',Z_sat', phi0, lam0, h0, [R, sqrt(0.00669438002290)],'radians');
+end
 zenit = 90 - atan(u./sqrt(n.^2 + e.^2))/deg;
 azimuth = atan2(e,n)*180/pi;
 azimuth(azimuth<0) = azimuth(azimuth<0) + 360;
