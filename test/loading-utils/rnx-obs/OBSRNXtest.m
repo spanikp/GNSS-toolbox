@@ -239,14 +239,14 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             skyplot4 = o.makeSkyplot(gnssSelection,backgroundFile,transparency); legend off;
             %skyplot3.exportToFile('c:\Users\petos\Documents\ST3_PhD\xxx.png','png',300)
         end
-        function testMakeLocalSelection(obj)
+        function testMakeRegionSelection(obj)
             o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
             %o.saveToMAT(fullfile(pwd(),'testOut.mat'));
             %o = OBSRNX.loadFromMAT(fullfile(pwd(),'testOut.mat'));
             skyplot = o.makeSkyplot('G');
             regionElevation = [10 50 50 10 10];
             regionAzimuth = [90 90 180 180 90];
-            %skyplot = skyplot.plotRegion(regionElevation,regionAzimuth);
+            skyplot = skyplot.plotRegion(regionElevation,regionAzimuth);
             [satsNo,~] = o.getSatsInRegion('G',regionElevation,regionAzimuth);
             obj.assertEqual(satsNo,[2,6,13]);
         end

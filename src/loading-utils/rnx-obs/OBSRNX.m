@@ -501,20 +501,22 @@ classdef OBSRNX
     end
     methods 
         % Plotting functions
-        function skyplot = makeSkyplot(obj,gnsses,backgroundFile,transparency)
+        function skyplot = makeSkyplot(obj,gnsses,showSatNames,backgroundFile,transparency)
             if isempty(obj.satpos)
                 error('ValidationError:SatellitePostionsNotAvailable',...
                     'First satellite position needs to be computed using "OBSRNX.computeSatPosition" method!');
             end
             
-            if nargin < 4
+            if nargin < 5
                transparency = 50;
-               if nargin < 3
+               if nargin < 4
                   skyplotClassFolder = fileparts(which('Skyplot'));
                   backgroundFile = fullfile(skyplotClassFolder,'sampleSkyplot.png');
-                  if nargin < 2
-                      gnsses = arrayfun(@(x) x.gnss,obj.satpos);
-                     
+                  if nargin < 3
+                      showSatNames = false;
+                      if nargin < 2
+                         gnsses = arrayfun(@(x) x.gnss,obj.satpos);
+                      end
                   end
                end
             end
@@ -529,13 +531,15 @@ classdef OBSRNX
                 for j = 1:length(obj.satpos(i).satList)
                     satNo = obj.satpos(i).satList(j);
                     satStr = sprintf('%s%02d',obj.satpos(i).gnss,satNo);
-                    [elev,azi] = obj.getLocal(obj.satpos(i).gnss,satNo,obj.satpos(i).satTimeFlags(:,j));
+                    [elev,azi] = obj.getLocal(obj.satpos(i).gnss,satNo); %,obj.satpos(i).satTimeFlags(:,j)
                     isValid = elev ~= 0 & azi ~= 0;
                     elev(~isValid) = nan;
                     azi(~isValid) = nan;
                     skyplot = skyplot.addPlot(elev,azi,satStr,'-',cols(i,:));
-                    [xText,yText] = Skyplot.getCartFromPolar(skyplot.R,elev(end),azi(end));
-                    text(xText,yText,satStr,'Color',cols(i,:));
+                    if showSatNames
+                       [xText,yText] = Skyplot.getCartFromPolar(skyplot.R,elev(end),azi(end));
+                       text(xText,yText,satStr,'Color',cols(i,:));
+                    end
                 end
             end
             
@@ -693,6 +697,10 @@ classdef OBSRNX
                     satsNo = [satsNo,satNo];
                     satsIn = [satsIn,in];
                 end
+            end
+            
+            if ~isempty(satsIn)
+                satsIn = logical(satsIn);
             end
         end
 

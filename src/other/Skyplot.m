@@ -127,21 +127,27 @@ classdef Skyplot < handle
             xRegion = []; yRegion = [];
             pointsInBetween = 20;
             for i = 1:length(regionElevation)-1
+                if regionAzimuth(i) == regionAzimuth(i+1)
+                    azimuthRange = repmat(regionAzimuth(i),[1,pointsInBetween]);
+                else
+                    dAzi = regionAzimuth(i+1)-regionAzimuth(i);
+                    if dAzi < -180
+                        regionAzimuth(i) = regionAzimuth(i)-360;
+                    end
+                    azimuthRange = linspace(regionAzimuth(i),regionAzimuth(i+1),pointsInBetween);
+                end
                 if regionElevation(i) == regionElevation(i+1)
                     elevationRange = repmat(regionElevation(i),[1,pointsInBetween]);
                 else
                     elevationRange = linspace(regionElevation(i),regionElevation(i+1),pointsInBetween);
                 end
-                if regionAzimuth(i) == regionAzimuth(i+1)
-                    azimuthRange = repmat(regionAzimuth(i),[1,pointsInBetween]);
-                else
-                    azimuthRange = linspace(regionAzimuth(i),regionAzimuth(i+1),pointsInBetween);
-                end
+                [xRegionPoints,yRegionPoints] = obj.polar2cart(regionElevation,regionAzimuth);
                 [x,y] = obj.polar2cart(elevationRange,azimuthRange);
                 xRegion = [xRegion, x];
                 yRegion = [yRegion, y];
             end
             set(0,'CurrentFigure',obj.fig);
+            %plot(xRegionPoints,yRegionPoints,'r.','HandleVisibility','off');
             patch('XData',xRegion,'YData',yRegion,'FaceColor',color,'FaceAlpha',transparency(1),...
                 'EdgeAlpha',transparency(2),'LineStyle',lineStyle,'HandleVisibility','off');
         end
