@@ -227,7 +227,7 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.obsrnxqi.exportToFile(fullfile(pwd(),'testOutWithQualityIndicators.rnx'));
         end
         function testMakeSkyplot(obj)
-            backgroundFile = fullfile(pwd(),'../../other/skyplotTestBackground.png');
+            backgroundFile = fullfile('../../other/skyplotTestBackground.png');
             transparency = 85;
             gnssSelection = 'GR';
             o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
@@ -235,9 +235,15 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             %o = OBSRNX.loadFromMAT(fullfile(pwd(),'testOut.mat'));
             skyplot1 = o.makeSkyplot(); legend off;
             skyplot2 = o.makeSkyplot(gnssSelection); legend off;
-            skyplot3 = o.makeSkyplot(gnssSelection,backgroundFile); legend off;
-            skyplot4 = o.makeSkyplot(gnssSelection,backgroundFile,transparency); legend off;
-            %skyplot3.exportToFile('c:\Users\petos\Documents\ST3_PhD\xxx.png','png',300)
+            skyplot3 = o.makeSkyplot(gnssSelection,true); legend off;
+            skyplot4 = o.makeSkyplot(gnssSelection,true,backgroundFile); legend off;
+            skyplot5 = o.makeSkyplot(gnssSelection,true,backgroundFile,transparency); legend off;
+            
+            %skyplot1.exportToFile(fullfile(pwd(),'skyplot1.png'),'png',300)
+            %skyplot2.exportToFile(fullfile(pwd(),'skyplot2.png'),'png',300)
+            %skyplot3.exportToFile(fullfile(pwd(),'skyplot3.png'),'png',300)
+            %skyplot4.exportToFile(fullfile(pwd(),'skyplot4.png'),'png',300)
+            %skyplot5.exportToFile(fullfile(pwd(),'skyplot5.png'),'png',300)
         end
         function testMakeRegionSelection(obj)
             o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
