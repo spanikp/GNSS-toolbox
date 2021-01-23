@@ -1,6 +1,8 @@
 function [timeStamp, CSprns, CScell] = dataCell2CSmatrix(dataCell)
 
-timeStamp = cellfun(@(c) datetime(c(9:27),'InputFormat','yyyy-MM-dd HH:mm:ss'), dataCell);
+for i = 1:length(dataCell)
+    timeStamp(i,1) = datetime(dataCell{i}(9:27),'InputFormat','yyyy-MM-dd HH:mm:ss');
+end
 CSprns = cell2mat(cellfun(@(c) str2num(c(31:32)), dataCell, 'UniformOutput', 0));
 
 CScell = cell(1,32);

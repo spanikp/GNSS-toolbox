@@ -178,7 +178,12 @@ end
 
 % Kernel smoothing (empirical parameter)
 empParam = 0.685;
-gaussKernel = fspecial('gaussian',binSize+[1,1],1.5);
+try
+    % Require Matlab image processing toolbox
+    gaussKernel = fspecial('gaussian',binSize+[1,1],1.5);
+catch
+    gaussKernel = gaussian(binSize(1)+1,binSize(2)+1,1.5);
+end
 Nsmt = conv2(N,gaussKernel,'same');
 Nsmt = empParam^2*conv2(Nsmt,ones(binSize+[1,1]),'same');
 %maxSlipsInBinSmt = max(max(Nsmt));
