@@ -52,5 +52,15 @@ classdef SkyplotTest < matlab.unittest.TestCase
             sp.exportToFile('sample4','pdf');
             sp.exportToFile('sample4','png');
         end
+        function testSkyplotPlotRegion(obj)
+            regionElevation = [10 50 50 10 10];
+            regionAzimuth = [90 90 120 120 90];
+            sp = Skyplot();
+            sp.plotRegion(regionElevation,regionAzimuth);
+            sp.plotRegion(regionElevation+5,regionAzimuth+35,'blue');
+            sp.plotRegion([30 90 90 30 30],[0 0 60 60 0],'cyan');
+            sp.plotRegion(regionElevation+10,regionAzimuth+70,'yellow',[0.8,1]);
+            sp.plotRegion(regionElevation+15,regionAzimuth+105,[0,0.5,0],[0.5,0.8],'--');
+        end
     end
 end

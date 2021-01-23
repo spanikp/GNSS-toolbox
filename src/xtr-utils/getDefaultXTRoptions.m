@@ -23,7 +23,7 @@ end
 
 % Validation
 validateattributes(plotType,{'char'},{},1)
-mustBeMember(plotType,{'MP','SNR','CS'})
+assert(ismember(plotType,{'MP','SNR','CS'}),'Input "plotType" has to be one of: MP, SNR, CS!');
 
 % General options
 opt = struct(...

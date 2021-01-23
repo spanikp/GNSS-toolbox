@@ -144,7 +144,7 @@ classdef OBSRNX
                 localRefPoint = obj.recpos;
                 satList = obj.sat.(s);
                 satFlags = obj.satTimeFlags.(s);
-                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags);
+                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags,obj.header.leapSeconds);
             end
             
             % Consistency checks
@@ -499,6 +499,52 @@ classdef OBSRNX
             end
         end
     end
+    methods 
+        % Plotting functions
+        function skyplot = makeSkyplot(obj,gnsses,showSatNames,backgroundFile,transparency)
+            if isempty(obj.satpos)
+                error('ValidationError:SatellitePostionsNotAvailable',...
+                    'First satellite position needs to be computed using "OBSRNX.computeSatPosition" method!');
+            end
+            
+            if nargin < 5
+               transparency = 50;
+               if nargin < 4
+                  skyplotClassFolder = fileparts(which('Skyplot'));
+                  backgroundFile = fullfile(skyplotClassFolder,'sampleSkyplot.png');
+                  if nargin < 3
+                      showSatNames = false;
+                      if nargin < 2
+                         gnsses = arrayfun(@(x) x.gnss,obj.satpos);
+                      end
+                  end
+               end
+            end
+            availableGnss = arrayfun(@(x) x.gnss,obj.satpos);
+            assert(all(ismember(gnsses,availableGnss)),'Cannot make skyplot of GNSS system which is not available!');
+            skyplot = Skyplot(backgroundFile,transparency);
+            
+            % Plotting individual satellite paths
+            cols = lines(length(obj.satpos));
+            for iGnss = 1:length(gnsses)
+                i = find(availableGnss == gnsses(iGnss));
+                for j = 1:length(obj.satpos(i).satList)
+                    satNo = obj.satpos(i).satList(j);
+                    satStr = sprintf('%s%02d',obj.satpos(i).gnss,satNo);
+                    [elev,azi] = obj.getLocal(obj.satpos(i).gnss,satNo); %,obj.satpos(i).satTimeFlags(:,j)
+                    isValid = elev ~= 0 & azi ~= 0;
+                    elev(~isValid) = nan;
+                    azi(~isValid) = nan;
+                    skyplot = skyplot.addPlot(elev,azi,satStr,'-',cols(i,:));
+                    if showSatNames
+                       [xText,yText] = Skyplot.getCartFromPolar(skyplot.R,elev(end),azi(end));
+                       text(xText,yText,satStr,'Color',cols(i,:));
+                    end
+                end
+            end
+            
+        end
+    end
     methods
         % Removal functions
         function obj = removeSats(obj,gnss_,satsToRemove)
@@ -625,6 +671,37 @@ classdef OBSRNX
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             dt = diff(datetime(obj.t(:,9),'ConvertFrom','datenum'));
             ts = seconds(mode(dt));
+        end
+        function [satsNo,satsIn] = getSatsInRegion(obj,gnss_,regionElevation,regionAzimuth)
+            validateattributes(regionElevation,{'double'},{'size',[1,nan]},3);
+            validateattributes(regionAzimuth,{'double'},{'size',[1,nan]},4);
+            assert(~isempty(obj.satpos),'Satellite position needs to be computed prior region selection!');
+            assert(all(regionAzimuth>=0 & regionAzimuth<=360),'Elevation definition of region out of range!');
+            assert(all(regionElevation>=0 & regionElevation<=90),'Azimuth definition of region out of range!');
+            assert(isequal(size(regionElevation),size(regionAzimuth)),'Region of interest elevation/azimuth mismatch!');
+            assert(ismember(gnss_,obj.gnss),sprintf('Required system "%s" not available!',gnss_));
+            gnssWithPos = arrayfun(@(x) x.gnss,obj.satpos);
+            assert(ismember(gnss_,gnssWithPos),sprintf('Required system "%s" has not computed positions!',gnss_));
+            
+            satPosIdx = find(gnssWithPos == gnss_);
+            satsToSel = obj.satpos(satPosIdx).satList;
+            satsNo = [];
+            satsIn = [];
+            for i = 1:length(satsToSel)
+                satNo = satsToSel(i);
+                [elev,azi] = obj.getLocal(gnss_,satNo);
+                elev(~obj.satpos(satPosIdx).satTimeFlags(:,i)) = nan;
+                azi(~obj.satpos(satPosIdx).satTimeFlags(:,i)) = nan;
+                in = inpolygon(elev,azi,regionElevation,regionAzimuth);
+                if nnz(in) ~= 0
+                    satsNo = [satsNo,satNo];
+                    satsIn = [satsIn,in];
+                end
+            end
+            
+            if ~isempty(satsIn)
+                satsIn = logical(satsIn);
+            end
         end
 
         % Modify observation function

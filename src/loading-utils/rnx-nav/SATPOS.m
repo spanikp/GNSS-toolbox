@@ -46,7 +46,7 @@ classdef SATPOS
     end
     
     methods
-        function obj = SATPOS(gnss,satList,ephType,ephFolder,gpstime,localRefPoint,satTimeFlags)
+        function obj = SATPOS(gnss,satList,ephType,ephFolder,gpstime,localRefPoint,satTimeFlags,obsrnxLeapSeconds)
             if ~exist('localRefPoint','var'), localRefPoint = nan(1,3); end
             if nargin > 0
                 obj.gnss = gnss;
@@ -54,11 +54,20 @@ classdef SATPOS
                 obj.ephType = ephType;
                 obj.ephFolder = fullpath(ephFolder);
                 obj.gpstime = gpstime;
+                if nargin < 8
+                    leapSecondsStartStop = getLeapSeconds([gpstime(1,:);gpstime(end,:)]);
+                    if leapSecondsStartStop(2) ~= leapSecondsStartStop(1)
+                        error('Computation not design to make computation when number of leap second change! Code needs to be adapted!');
+                    else
+                        obsrnxLeapSeconds = leapSecondsStartStop(1);
+                    end
+                end
                 if nargin < 7
                     obj.satTimeFlags = true(size(gpstime,1),numel(satList));
                 else
                     obj.satTimeFlags = satTimeFlags;
                 end
+                    
                 timeFrame = gps2greg(gpstime([1,end],:));
                 timeFrame = timeFrame(:,1:3);
                 
@@ -67,6 +76,11 @@ classdef SATPOS
                     case 'broadcast'
                         brdc = loadRINEXNavigation(obj.gnss,obj.ephFolder,obj.ephList);
                         brdc = checkEphStatus(brdc);
+                        
+                        % Check if LEAP SECOND value is provided
+                        if ~exist('obsrnxLeapSeconds','var') && isempty(brdc.hdr.leapSeconds) && strcmp(brdc.gnss,'R')
+                            error('Leap seconds not provided!')
+                        end
                         
                         % Check if given sat and sat in brdc corresponds
                         selSatNotPresent = ~ismember(obj.satList,brdc.sat);
@@ -80,7 +94,11 @@ classdef SATPOS
                             warning('No satellites to process! Program will end.')
                             return
                         end
-                        [obj.ECEF, ~, obj.SVclockCorr] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.localRefPoint,obj.satTimeFlags);
+                        
+                        % Take number of leap second from navigation RINEX header (case of RINEX v2) or use value from
+                        % observation RINEX header section (LEAP SECONDS element is not mandatory in navigation RINEX v3)
+                        [obj.ECEF,~,obj.SVclockCorr] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.localRefPoint,obj.satTimeFlags,obsrnxLeapSeconds);
+
                     case 'precise'
                         fileListToLoad = cellfun(@(x) fullfile(obj.ephFolder,x),obj.ephList,'UniformOutput',false);
                         eph = SP3(fileListToLoad,900,gnss);
@@ -127,7 +145,6 @@ classdef SATPOS
             else
                 warning('ECEF coordinates for %s%02d are not available!',obj.gnss,satNo);
             end
-
         end
     end
     methods (Access = private)
@@ -193,18 +210,27 @@ classdef SATPOS
         end 
     end
     methods (Static)
-        function [ECEF, local, SVclockCorr] = getBroadcastPosition(satList,gpstime,brdc,localRefPoint,satTimeFlags)
+        function [ECEF, local, SVclockCorr] = getBroadcastPosition(satList,gpstime,brdc,localRefPoint,satTimeFlags,leapSeconds)
             validateattributes(satList,{'double'},{'nonnegative'},1)
             validateattributes(gpstime,{'double'},{'size',[NaN,2]},2)
             validateattributes(brdc,{'struct'},{},3)
-            if nargin < 4
-                localRefPoint = [0,0,0];
-                satTimeFlags = true(size(gpstime,1),numel(satList));
-            elseif nargin < 5
-                satTimeFlags = true(size(gpstime,1),numel(satList));
+            if nargin < 6
+                leapSecondsStartStop = getLeapSeconds(gpstime);
+                if leapSecondsStartStop(2) ~= leapSecondsStartStop(1)
+                    error('Computation not design to make computation when number of leap second change! Code needs to be adapted!');
+                else
+                    leapSeconds = leapSecondsStartStop(1);
+                end
+                if nargin < 5
+                   satTimeFlags = true(size(gpstime,1),numel(satList));
+                   if nargin < 4
+                      localRefPoint = [0,0,0];
+                   end
+                end
             end
             validateattributes(localRefPoint,{'double'},{'size',[1,3]},4)
             validateattributes(satTimeFlags,{'logical'},{'size',[size(gpstime,1),numel(satList)]},5)
+            validateattributes(leapSeconds,{'double'},{'scalar'},6);
                 
             satsys =  brdc.gnss;
             fprintf('\n############################################################\n')
@@ -257,8 +283,8 @@ classdef SATPOS
                 % Values of mTimeGiven are from BRDC message and these are already in UTC timescale.
                 % Also value of GPS week and GPS second of week will be transformed to UTC time.
                 if satsys == 'R'
-                    mTimeWanted   = mTimeWanted - brdc.hdr.leapSeconds/86400;
-                    GLOTimeWanted = GPS2UTCtime(GPSTimeWanted,brdc.hdr.leapSeconds);
+                    mTimeWanted   = mTimeWanted - leapSeconds/86400;
+                    GLOTimeWanted = GPS2UTCtime(GPSTimeWanted,leapSeconds);
                 end
                 
                 % In case of BEIDOU/COMPASS -> change mTimeWanted to UTC at 1.1.2006.

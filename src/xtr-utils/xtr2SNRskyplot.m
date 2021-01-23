@@ -136,11 +136,12 @@ end
 % Put output together
 out.AZI = AZI;
 out.ELE = ELE;
+
+% Check if SNR struct exist (if not then input file not contain required data)
 if exist('SNR','var')
     out.SNR = SNR;
 else
-    warning('No SNR data available for specified %s!',SNRcode)
-    return 
+    error('Input XTR file "%s" does not contain SNR information!');
 end
 
 allGNSSSatPos.azi = allGNSSSatPos.azi(:);

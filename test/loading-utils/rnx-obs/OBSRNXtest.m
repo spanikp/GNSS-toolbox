@@ -1,6 +1,7 @@
 classdef OBSRNXtest < matlab.unittest.TestCase
     properties
         obsrnx
+        obsrnxSatpos
         obsrnxqi
         antex
     end
@@ -76,6 +77,11 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.verifyEqual(oldRecPos(1)+dH*cosd(lat)*cosd(lon),obj.obsrnx.recpos(1),'Abstol',1e-10);
             obj.verifyEqual(oldRecPos(2)+dH*cosd(lat)*sind(lon),obj.obsrnx.recpos(2),'Abstol',1e-10);
             obj.verifyEqual(oldRecPos(3)+dH*sind(lat),obj.obsrnx.recpos(3),'Abstol',1e-10);
+        end
+        function testMakeSkyplotAssert(obj)
+            % Method 'makeSkyplot' should raise assertion if 'satpos' element is empty
+            % (no satellite positions are available)
+            obj.verifyError(@() obj.obsrnx.makeSkyplot(),'ValidationError:SatellitePostionsNotAvailable')
         end
         function testComputeBrdc(obj)
             obj.obsrnx = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
@@ -219,6 +225,36 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.obsrnx.exportToFile(fullfile(pwd(),'testOut.rnx'),gnsses,decimate,false);
             obj.obsrnx.exportToFile(fullfile(pwd(),'testOutWithOffsets.rnx'),gnsses,decimate,writeReceiverOffset);
             obj.obsrnxqi.exportToFile(fullfile(pwd(),'testOutWithQualityIndicators.rnx'));
+        end
+        function testMakeSkyplot(obj)
+            backgroundFile = fullfile('../../other/skyplotTestBackground.png');
+            transparency = 85;
+            gnssSelection = 'GR';
+            o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
+            %o.saveToMAT(fullfile(pwd(),'testOut.mat'));
+            %o = OBSRNX.loadFromMAT(fullfile(pwd(),'testOut.mat'));
+            skyplot1 = o.makeSkyplot(); legend off;
+            skyplot2 = o.makeSkyplot(gnssSelection); legend off;
+            skyplot3 = o.makeSkyplot(gnssSelection,true); legend off;
+            skyplot4 = o.makeSkyplot(gnssSelection,true,backgroundFile); legend off;
+            skyplot5 = o.makeSkyplot(gnssSelection,true,backgroundFile,transparency); legend off;
+            
+            %skyplot1.exportToFile(fullfile(pwd(),'skyplot1.png'),'png',300)
+            %skyplot2.exportToFile(fullfile(pwd(),'skyplot2.png'),'png',300)
+            %skyplot3.exportToFile(fullfile(pwd(),'skyplot3.png'),'png',300)
+            %skyplot4.exportToFile(fullfile(pwd(),'skyplot4.png'),'png',300)
+            %skyplot5.exportToFile(fullfile(pwd(),'skyplot5.png'),'png',300)
+        end
+        function testMakeRegionSelection(obj)
+            o = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
+            %o.saveToMAT(fullfile(pwd(),'testOut.mat'));
+            %o = OBSRNX.loadFromMAT(fullfile(pwd(),'testOut.mat'));
+            skyplot = o.makeSkyplot('G');
+            regionElevation = [10 50 50 10 10];
+            regionAzimuth = [90 90 180 180 90];
+            skyplot = skyplot.plotRegion(regionElevation,regionAzimuth);
+            [satsNo,~] = o.getSatsInRegion('G',regionElevation,regionAzimuth);
+            obj.assertEqual(satsNo,[2,6,13]);
         end
     end
     methods (Test, ParameterCombination='sequential')

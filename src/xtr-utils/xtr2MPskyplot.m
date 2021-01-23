@@ -146,6 +146,13 @@ for i = 1:length(GNScell)
     MP.(GNScell{i}).vector = MP.(GNScell{i}).vals(sel);
 end
 
+% Check if MP struct exist (if not then input file not contain required data)
+if exist('MP','var')
+    out.MP = MP;
+else
+    error('Input XTR file "%s" does not contain Multipath information!');
+end
+
 % Put output together
 out.AZI = AZI;
 out.ELE = ELE;

@@ -66,7 +66,8 @@ classdef CorrectionMap
             
             % Replace nan by 0 (only for plotting purposes)
             corrForPlotting = 1e3*obj.corr;
-            corrForPlotting(isnan(corrForPlotting)) = 1000;
+            %corrForPlotting(isnan(corrForPlotting)) = 1000; % Nan regions are red
+            corrForPlotting(isnan(corrForPlotting)) = 0;     % Nan regions are white
             
             f = figure();
             plotTitle = sprintf('Correction grid (%s, %s)',obj.gnss,obj.obsType);

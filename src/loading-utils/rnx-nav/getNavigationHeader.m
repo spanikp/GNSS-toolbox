@@ -23,18 +23,21 @@ function [hdr, endOfHeaderIndex] = getNavigationHeader(raw)
 
 % Parsing header
 lineIndex = 0;
+hdr.version = [];
 while 1
     lineIndex = lineIndex + 1;
     line = raw{lineIndex};
     
     % Get version information
-    if contains(line,'RINEX VERSION / TYPE')
+    if contains(line,'RINEX VERSION / TYPE') && isempty(hdr.version)
         hdr.version = round(str2double(line(1:20)));
     end   
     
     % Get leap seconds information from header
     if contains(line,'LEAP SECONDS')
         hdr.leapSeconds = str2double(line(1:20));
+    else
+        hdr.leapSeconds = [];
     end 
     
     if contains(line,'ION ALPHA')
@@ -53,6 +56,10 @@ while 1
     if contains(line,'END OF HEADER')
         break
     end
+end
+
+if isempty(hdr.version)
+    error('Not possible to resolve navigation RINEX file version!');
 end
 
 % Assign endOfHeaderIndex variable

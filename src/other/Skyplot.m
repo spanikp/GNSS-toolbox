@@ -4,8 +4,6 @@ classdef Skyplot < handle
         labels = {}
         lgd
         cb
-    end
-    properties (Access = private)
         R
     end
     methods
@@ -27,7 +25,7 @@ classdef Skyplot < handle
             set(obj.fig,'Units','centimeters');
             set(obj.fig,'PaperUnits','centimeters');
             set(obj.fig,'PaperPositionMode','Auto');
-            hold on
+            hold on;
             pos = get(obj.fig,'Position');
             set(obj.fig,'PaperSize',[pos(3),pos(4)])
             
@@ -37,7 +35,7 @@ classdef Skyplot < handle
             % Showing figure
             f = imshow(img,'InitialMagnification','fit');
             set(f,'AlphaData',alpha);
-            axis equal off
+            axis equal off;
             
             % Determine fisheye panorama diameter from image size
             obj.R = mean([size(img,1),size(img,2)])/2;
@@ -112,6 +110,47 @@ classdef Skyplot < handle
             scatter(x,y,markerSize,vals,'filled','MarkerFaceAlpha',.5,'MarkerEdgeAlpha',.5,'HandleVisibility','off')
             obj.initializeColorbar();
         end
+        function obj = plotRegion(obj,regionElevation,regionAzimuth,color,transparency,lineStyle)
+            validateattributes(regionElevation,{'double'},{'size',[1,nan]},2);
+            validateattributes(regionAzimuth,{'double'},{'size',[1,nan]},3);
+            if nargin < 6
+                lineStyle = '-';
+                if nargin < 5
+                    transparency = [0.2, 0.2]; % [FaceAlpha, EdgeAlpha]
+                    if nargin < 4
+                        color = 'red';
+                    end
+                end
+            end
+            
+            % Interpolate to spherical coordinates
+            xRegion = []; yRegion = [];
+            pointsInBetween = 20;
+            for i = 1:length(regionElevation)-1
+                if regionAzimuth(i) == regionAzimuth(i+1)
+                    azimuthRange = repmat(regionAzimuth(i),[1,pointsInBetween]);
+                else
+                    dAzi = regionAzimuth(i+1)-regionAzimuth(i);
+                    if dAzi < -180
+                        regionAzimuth(i) = regionAzimuth(i)-360;
+                    end
+                    azimuthRange = linspace(regionAzimuth(i),regionAzimuth(i+1),pointsInBetween);
+                end
+                if regionElevation(i) == regionElevation(i+1)
+                    elevationRange = repmat(regionElevation(i),[1,pointsInBetween]);
+                else
+                    elevationRange = linspace(regionElevation(i),regionElevation(i+1),pointsInBetween);
+                end
+                [xRegionPoints,yRegionPoints] = obj.polar2cart(regionElevation,regionAzimuth);
+                [x,y] = obj.polar2cart(elevationRange,azimuthRange);
+                xRegion = [xRegion, x];
+                yRegion = [yRegion, y];
+            end
+            set(0,'CurrentFigure',obj.fig);
+            %plot(xRegionPoints,yRegionPoints,'r.','HandleVisibility','off');
+            patch('XData',xRegion,'YData',yRegion,'FaceColor',color,'FaceAlpha',transparency(1),...
+                'EdgeAlpha',transparency(2),'LineStyle',lineStyle,'HandleVisibility','off');
+        end
         function obj = adjustColorbarLimits(obj,limits)
             if ~isempty(obj.cb)
                 set(obj.cb,'Limits',limits)
@@ -185,6 +224,13 @@ classdef Skyplot < handle
                     obj.cb.Position = [0.185 0.05 0.54 0.03];
                 end
             end
+        end
+    end
+    methods (Static)
+        function [x,y] = getCartFromPolar(R,elev,azi)
+            r = ((90 - elev)/90)*R;
+            x = R + r.*sind(azi);
+            y = R - r.*cosd(azi);
         end
     end
 end
