@@ -67,18 +67,23 @@ data = raw{1,1};
 % Find empty lines in XTR file and remove them
 data = data(~cellfun(@(c) isempty(c), data));
 
+% Get approximate position
+approxPositionSel = cellfun(@(x) strcmp('=XYZAPR',x(1:7)),data);
+if nnz(approxPositionSel) == 1
+    s = data(approxPositionSel);
+    approxPosition = sscanf(s{1}(30:80),'%f')';
+else
+    error('Cannot read approximate position from XTR file! No element "=XYZAPR", please rerun anubis with different configuration!');
+end 
+
 % Find indices of Main Chapters (#)
 GNScell = findGNSTypes(data);
 
 % Satellite's data loading
 allGNSSSatPos.azi = [];
 allGNSSSatPos.ele = [];
+validGNSS = {};
 for i = 1:length(GNScell)
-    % Find position estimate
-    selpos = cellfun(@(c) strcmp(['=XYZ', GNScell{i}],c(1:7)), data);
-    postext = char(data(selpos));
-    pos = str2num(postext(30:76));
-    
     % Elevation loading
     selELE_GNS = cellfun(@(c) strcmp([GNScell{i}, 'ELE'],c(2:7)), data);
     dataCell = data(selELE_GNS);
@@ -112,6 +117,8 @@ for i = 1:length(GNScell)
     if nnz(selCS_GNS) == 0
         warning('For %s system cycle-slip information is missing - no cycle slip occurs!',GNScell{i})
         continue
+    else
+        validGNSS = [validGNSS,{GNScell{i}}];
     end
     dataCell = data(selCS_GNS);
     [~, ~, CS.(GNScell{i})] = dataCell2CSmatrix(dataCell);
@@ -123,7 +130,7 @@ end
 
 % Check if SNR struct exist (if not then input file not contain required data)
 if ~exist('CS','var')
-    error('Input XTR file "%s" does not contain Cycleslip information!');
+    error('Input XTR file "%s" does not contain Cycleslip information!',xtrFileName);
 end
 
 allGNSSSatPos.azi = allGNSSSatPos.azi(:);
@@ -134,15 +141,16 @@ allGNSSSatPos.ele = allGNSSSatPos.ele(selNotNan);
 
 % Interpolate position of CS event
 allSlips = [];
-for i = 1:numel(GNScell)
-    CycleSlip.(GNScell{i}) = [];
+for i = 1:length(validGNSS)
+    gnss = validGNSS{i};
+    CycleSlip.(gnss) = [];
     for prn = 1:32
-        if ~isempty(CS.(GNScell{i}){prn})
-            % Get the data from cells
-            wantedTime = CS.(GNScell{i}){prn}(:);
-            givenTime  = AZI.(GNScell{i}).time;
-            givenAzi   = AZI.(GNScell{i}).vals(:,prn);
-            givenEle   = ELE.(GNScell{i}).vals(:,prn);
+        % Get the data from cells
+        wantedTime = CS.(gnss){prn}(:);
+        if ~isempty(wantedTime)
+            givenTime  = AZI.(gnss).time;
+            givenAzi   = AZI.(gnss).vals(:,prn);
+            givenEle   = ELE.(gnss).vals(:,prn);
             
             % Interpolation
             wantedAzi = interp1(givenTime,givenAzi,wantedTime,'Linear');
@@ -154,11 +162,10 @@ for i = 1:numel(GNScell)
             wantedEle = wantedEle(selNotNan);
             
             % Paste to output
-            CycleSlip.(GNScell{i}) = [CycleSlip.(GNScell{i}); [wantedAzi, wantedEle]];
-            
+            CycleSlip.(gnss) = [CycleSlip.(gnss); [wantedAzi, wantedEle]];
         end
     end
-    allSlips = [allSlips; CycleSlip.(GNScell{i})];
+    allSlips = [allSlips; CycleSlip.(gnss)];
 end
 
 % Get unique values
@@ -214,7 +221,7 @@ end
 
 % Determine noSatZone bins
 [azig, eleg] = meshgrid(aziBins, eleBins);
-[x_edge,y_edge] = getNoSatZone('GPS',pos);
+[x_edge,y_edge] = getNoSatZone('GPS',approxPosition);
 xq = (90 - eleg).*sind(azig);
 yq = (90 - eleg).*cosd(azig);
 in = inpolygon(xq,yq,x_edge,y_edge);

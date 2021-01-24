@@ -49,6 +49,11 @@ data = raw{1,1};
 % Find empty lines in XTR file and remove them
 data = data(~cellfun(@(c) isempty(c), data));
 
+% Get from which RINEX version we create XTR file
+RNXVER_line = data{cellfun(@(x) strcmp('=RNXVER',x(1:7)),data)};
+RNXVER = [str2double(RNXVER_line(29)), str2double(RNXVER_line(31:32))]; % 2-element array: [MajorVersion, MinorVersion]
+checkGivenObservationType(RNXVER(1),'C',MPcode);
+
 % Find indices of Main Chapters (#)
 GNScell = findGNSTypes(data);
 
@@ -56,15 +61,28 @@ GNScell = findGNSTypes(data);
 myColorMap = colormap(jet); close; % Command colormap open figure!
 myColorMap = [[1,1,1]; myColorMap];
 
+% Get approximate position
+approxPositionSel = cellfun(@(x) strcmp('=XYZAPR',x(1:7)),data);
+if nnz(approxPositionSel) == 1
+    s = data(approxPositionSel);
+    approxPosition = sscanf(s{1}(30:80),'%f')';
+else
+    error('Cannot read approximate position from XTR file! No element "=XYZAPR", please rerun anubis with different configuration!');
+end 
+
 % Satellite's data loading
-pos = [];
+pos = struct();
 allGNSSSatPos.azi = [];
 allGNSSSatPos.ele = [];
 for i = 1:length(GNScell)
     % Find position estimate
     selpos = cellfun(@(c) strcmp(['=XYZ', GNScell{i}],c(1:7)), data);
-    postext = char(data(selpos));
-    pos = [pos; str2num(postext(30:76))];
+    if nnz(selpos) == 1
+        postext = char(data(selpos));
+        pos.(GNScell{i}) = str2num(postext(30:76));
+    else
+        pos.(GNScell{i}) = nan(1,3);
+    end
     
     % Elevation loading
     selELE_GNS = cellfun(@(c) strcmp([GNScell{i}, 'ELE'],c(2:7)), data);
@@ -99,11 +117,14 @@ for i = 1:length(GNScell)
     end
     
     % Multipath loading
-    RNXVER_line = data{cellfun(@(x) strcmp('=RNXVER',x(1:7)),data)};
-    RNXVER = [str2double(RNXVER_line(29)), str2double(RNXVER_line(31:32))]; % 2-element array: [MajorVersion, MinorVersion]
     switch RNXVER(1)
         case 2
-            selMP_GNS = cellfun(@(c) strcmp([' ', GNScell{i}, 'M', MPcode], c(1:7)), data);
+            % Check if input is valid RINEX observation
+            if length(MPcode) ~= 2
+                error('XTR file made of RINEX v2, thus required observation type has to be valid RINEX v2 identifier (e.g. C1, P1,...)!\nRequired observation: %s',MPcode);
+            end
+            selMP_GNS = cellfun(@(c) strcmp([' ', GNScell{i}, 'M',MPcode], c(1:7)), data); % Works for older Anubis XTR files
+            %selMP_GNS = cellfun(@(c) strcmp([' ', GNScell{i}, 'M', MPcode(end-1:end)], c(1:7)), data);
             if nnz(selMP_GNS) == 0
                 warning('For %s system MP combination %s not available!',GNScell{i},MPcode)
                 AZI.(GNScell{i}).vector = [];
@@ -111,6 +132,9 @@ for i = 1:length(GNScell)
                 continue
             end
         case 3
+            if length(MPcode) ~= 3
+                error('XTR file made of RINEX v3, thus required observation type has to be valid RINEX v3 identifier (e.g. C1C, C1P,...)!\nRequired observation: %s',MPcode);
+            end
             selMP_GNS = cellfun(@(c) strcmp([' ', GNScell{i}, 'M', MPcode(end-1:end)], c(1:7)), data);
             if nnz(selMP_GNS) == 0
                 warning('For %s system MP combination %s not available!',GNScell{i},MPcode)
@@ -150,7 +174,8 @@ end
 if exist('MP','var')
     out.MP = MP;
 else
-    error('Input XTR file "%s" does not contain Multipath information!');
+    error('Input XTR file "%s" does not contain Multipath information for "%s" signal!',...
+        xtrFileName,MPcode);
 end
 
 % Put output together
@@ -176,7 +201,9 @@ for i = 1:length(GNScell)
     aziBins = 0:3:360;
     eleBins = 0:3:90;
     [azig, eleg] = meshgrid(aziBins, eleBins);
+    warning('off');
     F = scatteredInterpolant(AZI.(GNScell{i}).vector,ELE.(GNScell{i}).vector,MP.(GNScell{i}).vector,'linear','none');
+    warning('on');
     mpg = F(azig,eleg);
     mpg(isnan(mpg)) = -1;
     
@@ -188,7 +215,7 @@ for i = 1:length(GNScell)
     end
     
     % Determine noSatZone bins
-    [x_edge,y_edge] = getNoSatZone(GNScell{i},mean(pos));
+    [x_edge,y_edge] = getNoSatZone(GNScell{i},approxPosition);
     xq = (90 - eleg).*sind(azig);
     yq = (90 - eleg).*cosd(azig);
     in = inpolygon(xq,yq,x_edge,y_edge);

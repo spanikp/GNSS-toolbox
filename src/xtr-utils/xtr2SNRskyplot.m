@@ -15,7 +15,6 @@ function out = xtr2SNRskyplot(xtrFileName, SNRcode, saveFig, options)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 validateattributes(xtrFileName,{'char'},{},1)
-validateattributes(SNRcode,{'char'},{'size',[1,3]},2)
 
 % Default options
 opt = getDefaultXTRoptions('SNR');
@@ -51,6 +50,11 @@ data = raw{1,1};
 % Find empty lines in XTR file and remove them
 data = data(~cellfun(@(c) isempty(c), data));
 
+% Get from which RINEX version we create XTR file
+RNXVER_line = data{cellfun(@(x) strcmp('=RNXVER',x(1:7)),data)};
+RNXVER = [str2double(RNXVER_line(29)), str2double(RNXVER_line(31:32))]; % 2-element array: [MajorVersion, MinorVersion]
+checkGivenObservationType(RNXVER(1),'S',SNRcode);
+
 % Find indices of Main Chapters (#)
 GNScell = findGNSTypes(data);
 
@@ -58,15 +62,28 @@ GNScell = findGNSTypes(data);
 myColorMap = colormap(jet); close; % Command colormap open figure!
 myColorMap = [[1,1,1]; myColorMap];
 
+% Get approximate position
+approxPositionSel = cellfun(@(x) strcmp('=XYZAPR',x(1:7)),data);
+if nnz(approxPositionSel) == 1
+    s = data(approxPositionSel);
+    approxPosition = sscanf(s{1}(30:80),'%f')';
+else
+    error('Cannot read approximate position from XTR file! No element "=XYZAPR", please rerun anubis with different configuration!');
+end 
+
 % Satellite's data loading
-pos = [];
+pos = struct();
 allGNSSSatPos.azi = [];
 allGNSSSatPos.ele = [];
 for i = 1:length(GNScell)
     % Find position estimate
     selpos = cellfun(@(c) strcmp(['=XYZ', GNScell{i}],c(1:7)), data);
-    postext = char(data(selpos));
-    pos = [pos; str2num(postext(30:76))];
+    if nnz(selpos) == 1
+        postext = char(data(selpos));
+        pos.(GNScell{i}) = str2num(postext(30:76));
+    else
+        pos.(GNScell{i}) = nan(1,3);
+    end
     
     % Elevation loading
     selELE_GNS = cellfun(@(c) strcmp([GNScell{i}, 'ELE'],c(2:7)), data);
@@ -141,7 +158,8 @@ out.ELE = ELE;
 if exist('SNR','var')
     out.SNR = SNR;
 else
-    error('Input XTR file "%s" does not contain SNR information!');
+    error('Input XTR file "%s" does not contain SNR information for "%s" signal!',...
+        xtrFileName,SNRcode);
 end
 
 allGNSSSatPos.azi = allGNSSSatPos.azi(:);
@@ -161,7 +179,9 @@ for i = 1:length(GNScell)
     aziBins = 0:3:360;
     eleBins = 0:3:90;
     [azig, eleg] = meshgrid(aziBins, eleBins);
+    warning('off');
     F = scatteredInterpolant(AZI.(GNScell{i}).vector,ELE.(GNScell{i}).vector,SNR.(GNScell{i}).vector,'linear','none');
+    warning('on');
     mpg = F(azig,eleg);
     mpg(isnan(mpg)) = -1;
     
@@ -173,7 +193,7 @@ for i = 1:length(GNScell)
     end
     
     % Determine noSatZone bins
-    [x_edge,y_edge] = getNoSatZone(GNScell{i},mean(pos));
+    [x_edge,y_edge] = getNoSatZone(GNScell{i},approxPosition);
     xq = (90 - eleg).*sind(azig);
     yq = (90 - eleg).*cosd(azig);
     in = inpolygon(xq,yq,x_edge,y_edge);
