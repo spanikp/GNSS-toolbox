@@ -773,6 +773,9 @@ classdef OBSRNX
     end
     methods (Access = private)
         function obj = loadRNXobservation(obj,param)
+            % Initialize satellite info object
+            satInfo = SatelliteInfo();
+            
             % Check if there is something to read
             obj.gnss = intersect(obj.header.gnss,param.filtergnss);
             if ~isempty(obj.gnss)
@@ -953,7 +956,7 @@ classdef OBSRNX
                     s = obj.gnss(i);
                     satSel = cellfun(@(x) sum(sum(x))~=0, obj.obs.(s));
                     obj.sat.(s) = find(satSel);
-                    obj.satblock.(s) = getPRNBlockNumber(obj.sat.(s),s);
+                    obj.satblock.(s) = satInfo.getSatelliteBlock(obj.sat.(s),s,datetime(obj.t(1,1:6)));
                     obj.obs.(s)(~satSel) = [];
                     if param.parseQualityIndicator
                         obj.obsqi.(s)(~satSel) = [];
