@@ -4,6 +4,8 @@ steps:
   - task: InstallMATLAB@0
     inputs:
       release: latest
-  - task: RunMATLABCommand@0
+  - task: RunMATLABTests@0
     inputs:
-      command: disp('Hello from Azure pipelines!')
+      codeCoverageCobertura: 'test/testCoverageReport.xml'
+      selectByFolder: 'test'
+      sourceFolder: 'src'
