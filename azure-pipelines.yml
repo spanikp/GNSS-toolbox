@@ -1,0 +1,5 @@
+pool: myPool
+steps:
+  - task: RunMATLABCommand@0
+    inputs:
+      command: disp('Hello from Azure pipelines!')
