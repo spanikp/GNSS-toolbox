@@ -1,5 +1,9 @@
-pool: myPool
+pool:
+  vmImage: Ubuntu 20.04
 steps:
+  - task: InstallMATLAB@0
+    inputs:
+      release: latest
   - task: RunMATLABCommand@0
     inputs:
       command: disp('Hello from Azure pipelines!')
