@@ -3,9 +3,12 @@ pool:
 steps:
   - task: InstallMATLAB@0
     inputs:
-      release: latest
-  - task: RunMATLABTests@0
+      release: R2020b
+  - task: RunMATLABCommand@0 
     inputs:
-      codeCoverageCobertura: 'test/testCoverageReport.xml'
-      selectByFolder: 'test'
-      sourceFolder: 'src'
+      command: "addpath(genpath('src')); results = runAllTests(); assertSuccess(results)"
+  - task: PublishTestResults@2
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: 'test/junit_test_results.xml'  
