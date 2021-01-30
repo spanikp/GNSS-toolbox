@@ -215,11 +215,11 @@ classdef OBSRNX
             %        * SNR - mostly in DB-HZ
             %
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            validateattributes(gnss,{'char'},{'nonempty'},1);
+            validateattributes(gnss,{'char'},{'nonempty'},2);
             validatestring(gnss,split(obj.gnss,''));
-            validateattributes(satNo,{'double'},{'scalar','positive'},2);
+            validateattributes(satNo,{'double'},{'scalar','positive'},3);
             mustBeMember(satNo,obj.sat.(gnss))
-            validateattributes(obsType,{'char','cell'},{'size',[1,nan]},3);
+            validateattributes(obsType,{'char','cell'},{'size',[1,nan]},4);
             mustBeMember(obsType,obj.obsTypes.(gnss))
             
             satIdx = obj.sat.(gnss) == satNo;

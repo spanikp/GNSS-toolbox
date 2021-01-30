@@ -1,5 +1,5 @@
 classdef SNRDifferenceFit
-    properties
+    properties (SetAccess = protected)
         C12 (1,:) double
         C15 (1,:) double
         S (1,:) double

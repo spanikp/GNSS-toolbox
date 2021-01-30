@@ -2,8 +2,8 @@
 
 | Branch | Travis CI | Azure Pipelines |
 | ----------- | ----------- | ----------- |
-| master |[![Build Status](https://travis-ci.com/spanikp/GNSS-toolbox.svg?branch=master)](https://travis-ci.com/spanikp/GNSS-toolbox)|![Build Status Azure DevOps dev](https://dev.azure.com/spanikp/GNSS-toolbox/_apis/build/status/spanikp.GNSS-toolbox?branchName=master)
-| dev |[![Build Status](https://travis-ci.com/spanikp/GNSS-toolbox.svg?branch=dev)](https://travis-ci.com/spanikp/GNSS-toolbox)| ![Build Status Azure DevOps dev](https://dev.azure.com/spanikp/GNSS-toolbox/_apis/build/status/spanikp.GNSS-toolbox?branchName=dev)
+| master |[![Build Status](https://travis-ci.com/spanikp/GNSS-toolbox.svg?branch=master)](https://travis-ci.com/spanikp/GNSS-toolbox)|[![Build Status Azure DevOps dev](https://dev.azure.com/spanikp/GNSS-toolbox/_apis/build/status/spanikp.GNSS-toolbox?branchName=master)](https://dev.azure.com/spanikp/GNSS-toolbox/_build?definitionId=2&_a=summary&view=branches)
+| dev |[![Build Status](https://travis-ci.com/spanikp/GNSS-toolbox.svg?branch=dev)](https://travis-ci.com/spanikp/GNSS-toolbox)| [![Build Status Azure DevOps dev](https://dev.azure.com/spanikp/GNSS-toolbox/_apis/build/status/spanikp.GNSS-toolbox?branchName=dev)](https://dev.azure.com/spanikp/GNSS-toolbox/_build?definitionId=2&_a=summary&view=branches)
 
 GNSS-toolbox is a set of functions and classes written in MATLAB language to load data from various formats used in GNSS data processing. Toolbox also provides functions to automatically download broadcast or precise ephemeris data and compute satellite positions for given observation periods. Also some visualization functions are provided in the toolbox.
 
@@ -30,7 +30,7 @@ GNSS-toolbox is a set of functions and classes written in MATLAB language to loa
 * for coordinate conversion MATLAB Mapping Toolbox is used
 
 ## Examples
-See `examples` folder with script `testRinexLoadObsPos.m` to load RINEX observation file and computation of satellite positions in ECEF and local reference frame. 
+See `example` folder with script `testRinexLoadObsPos.m` to load RINEX observation file and computation of satellite positions in ECEF and local reference frame. 
 
 ## Development
 Latest functionality is tracked in `dev` branch, pull requests are welcome.

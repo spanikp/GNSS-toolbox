@@ -10,12 +10,12 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
             opt.filtergnss = 'G';
             obj.obsrnx = OBSRNX('../data/JAB1080M.19o',opt);
             obj.obsrnxSatpos = obj.obsrnx.computeSatPosition('broadcast','../data/brdc');
+            %obj.obsrnx = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
+            %obj.obsrnxSatpos = OBSRNX.loadFromMAT('../data/JAB1080MSatpos.mat');
             
             % Export and load files from MAT (useful for local debug)
             %obj.obsrnx.saveToMAT('../data/JAB1080M.mat');
             %obj.obsrnxSatpos.saveToMAT('../data/JAB1080MSatpos.mat');
-            %obj.obsrnx = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
-            %obj.obsrnxSatpos = OBSRNX.loadFromMAT('../data/JAB1080MSatpos.mat');
         end
     end
     methods (Test)
@@ -23,8 +23,10 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
             obj.verifyError(@()SNRMultipathDetector(obj.obsrnx,'G',{'S1C','S2W','S5X'}),'invalidInput:noSattelitePositions');
         end
         function testSNRMultipathDetectorConstructor(obj)
+            %snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,'G',{'S1C','S2W'});
+            detectorType = 'moderate'; % strict/moderate
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,'G',{'S1C','S2W','S5X'});
-            
+            snrDetector
         end
     end
 end
