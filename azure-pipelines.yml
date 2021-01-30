@@ -6,7 +6,7 @@ steps:
       release: R2020b
   - task: RunMATLABCommand@0 
     inputs:
-      command: "addpath(genpath('src')); results = runAllTests(); assertSuccess(results)"
+      command: "addpath(genpath('src')); cd('test'); results = runAllTests(); assertSuccess(results)"
   - task: PublishTestResults@2
     condition: succeededOrFailed()
     inputs:
