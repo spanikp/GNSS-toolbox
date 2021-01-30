@@ -13,7 +13,6 @@ classdef SNRMultipathDetector
         refPolySat
         
         detectionThreshold
-        detectionThreshold
     end
    properties (Dependent)
       nSNR

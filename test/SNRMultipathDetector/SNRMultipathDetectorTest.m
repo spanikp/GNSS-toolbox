@@ -6,18 +6,16 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
     methods (TestClassSetup)
         function setupTest(obj)
             addpath(genpath('../../src'))
-            %opt = OBSRNX.getDefaults();
-            %opt.filtergnss = 'G';
-            %obj.obsrnx = OBSRNX('../data/JAB1080M.19o',opt);
-            %obj.obsrnxSatpos = obj.obsrnx.computeSatPosition('broadcast','../data/brdc');
+            opt = OBSRNX.getDefaults();
+            opt.filtergnss = 'G';
+            obj.obsrnx = OBSRNX('../data/JAB1080M.19o',opt);
+            obj.obsrnxSatpos = obj.obsrnx.computeSatPosition('broadcast','../data/brdc');
             
-            % Export loaded files to MAT 
+            % Export and load files from MAT (useful for local debug)
             %obj.obsrnx.saveToMAT('../data/JAB1080M.mat');
             %obj.obsrnxSatpos.saveToMAT('../data/JAB1080MSatpos.mat');
-            
-            % Loading from MAT (use for test development))
-            obj.obsrnx = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
-            obj.obsrnxSatpos = OBSRNX.loadFromMAT('../data/JAB1080MSatpos.mat');
+            %obj.obsrnx = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
+            %obj.obsrnxSatpos = OBSRNX.loadFromMAT('../data/JAB1080MSatpos.mat');
         end
     end
     methods (Test)
@@ -26,6 +24,7 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         end
         function testSNRMultipathDetectorConstructor(obj)
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,'G',{'S1C','S2W','S5X'});
+            
         end
     end
 end
