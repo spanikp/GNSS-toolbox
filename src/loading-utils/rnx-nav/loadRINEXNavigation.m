@@ -262,10 +262,15 @@ else
             sscanf(bodyBuffer{li+6}(f3),'%f');
             sscanf(bodyBuffer{li+6}(f4),'%f')];
         %%%% Line 8
-        block(39:42) = [str2double(bodyBuffer{li+7}(f1));
-            str2double(bodyBuffer{li+7}(f2));
-            str2double(bodyBuffer{li+7}(f3));
-            str2double(bodyBuffer{li+7}(f4))]; 
+        try
+            block(39:42) = [str2double(bodyBuffer{li+7}(f1));
+                str2double(bodyBuffer{li+7}(f2));
+                str2double(bodyBuffer{li+7}(f3));
+                str2double(bodyBuffer{li+7}(f4))];
+        catch
+            block(39:42) = [str2double(bodyBuffer{li+7}(f1));
+                str2double(bodyBuffer{li+7}(f2)); 0; 0];
+        end
         
         
         % Fast version of text waitbar
