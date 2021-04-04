@@ -51,7 +51,7 @@ classdef SatelliteInfo
     end
     methods (Access = private)
         function downloadSatteliteInfoFile(obj)
-            warning('Satellite info file "%s" will be downloaded!',obj.satInfoFile);
+            fprintf('Satellite info file is outdated, latest version of "%s" will be downloaded!\n',obj.satInfoFile);
             remoteFileURL = ['http://ftp.aiub.unibe.ch/BSWUSER52/GEN/',obj.satInfoFile];
             try
                 websave(fullfile(obj.satInfoLocalFolder,obj.satInfoFile),remoteFileURL);

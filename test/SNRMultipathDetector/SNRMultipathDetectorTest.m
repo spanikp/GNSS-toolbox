@@ -22,11 +22,11 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         function testInvalidInputs(obj)
             obj.verifyError(@()SNRMultipathDetector(obj.obsrnx,'G',{'S1C','S2W','S5X'}),'invalidInput:noSattelitePositions');
         end
-        function testSNRMultipathDetectorConstructor(obj)
-            %snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,'G',{'S1C','S2W'});
-            detectorType = 'moderate'; % strict/moderate
+        function testSNRMultipathDetectorConstructor_2frequencies(obj)
+            snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,'G',{'S1C','S2W'});
+        end
+        function testSNRMultipathDetectorConstructor_3frequencies(obj)
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,'G',{'S1C','S2W','S5X'});
-            snrDetector
         end
     end
 end

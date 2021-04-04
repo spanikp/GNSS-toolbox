@@ -1,38 +1,26 @@
 classdef SNRMultipathDetector
-    properties
-%         refPolyDiff             % Reference polynomials for SNR differences
-%         refPolyS                % Reference polynomials for test statistic
-%         refPolySatBlocks
-%         refPolySat
-%         
-%         detectionThreshold
-    end
-    properties (Dependent)
-        nSNR
-        nPoly
-    end
     properties (SetAccess = protected)
         gnss (1,1) char
         snrIdentifiers (1,:) cell
         t0 (1,1) datetime
         sats (1,:) double
-        detectorType (1,:) char {mustBeMember(detectorType,{'moderate','strict','block'})} = 'strict'
+        snrCal (1,1) struct
     end
-    properties (SetAccess = private)
+    properties (Access = private)
         snr (1,:) cell
         elevation (:,:) double
         azimuth (:,:) double
     end
+    properties (Dependent)
+        nSNR
+        nPoly
+    end
     methods
-        function obj = SNRMultipathDetector(obsrnx,gnss,snrIdentifiers,detectorType)
+        function obj = SNRMultipathDetector(obsrnx,gnss,snrIdentifiers)
             validateattributes(obsrnx,{'OBSRNX'},{'size',[1,1]},1)
             validateattributes(gnss,{'char'},{'size',[1,1]},2)
             validateattributes(snrIdentifiers,{'cell'},{},3)
             assert(ismember(length(snrIdentifiers),[2,3]),'Only 2 or 3 SNR identifiers are possible for input!');
-            
-            if nargin < 4, detectorType = 'strict'; end
-            validatestring(detectorType,{'moderate','strict'});
-            obj.detectorType = detectorType;
             
             % Checking if data can be extracted from OBSRNX object
             assert(contains(obsrnx.gnss,gnss),sprintf('Observation data not available for system "%s"!',gnss));
@@ -72,17 +60,15 @@ classdef SNRMultipathDetector
                 obj.snr{1,i}(obj.snr{1,i} == 0) = nan;
             end
             
-            calibrationMode = 'all';
-            snrCal_all = SNRMultipathCalibration(obj.gnss,obj.sats,obj.snr,obj.elevation,obj.t0,calibrationMode);
+            % Estimate calibration parameters for 'all', 'block' and 'individual' option
+            snrCalAll = SNRMultipathCalibration(obj.gnss,obj.sats,obj.snr,obj.elevation,obj.t0,'all');
+            if ~isempty(snrCalAll.fit), obj.snrCal.all = snrCalAll; end
             
-            
-        end
-        function obj = smoothSNRdifferences(obj,smoothingWindowLengths)
-            
-            
-        end
-        function obj = getCalibration(obsrnx)
-            
+%             snrCalBlock = SNRMultipathCalibration(obj.gnss,obj.sats,obj.snr,obj.elevation,obj.t0,'block');
+%             if ~isempty(snrCalBlock.fit), obj.snrCal.block = snrCalBlock; end
+%             
+%             snrCalIndividual = SNRMultipathCalibration(obj.gnss,obj.sats,obj.snr,obj.elevation,obj.t0,'individual');
+%             if ~isempty(snrCalIndividual.fit), obj.snrCal.individual = snrCalIndividual; end
         end
         function obj = detectMultipath(obsrnx)
             
