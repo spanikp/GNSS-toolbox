@@ -1,10 +1,10 @@
-function funfit = fitWithOptimization(f,x,y,verbose)
+function funfit = fitWithOptimization(f,x,y,verbosity)
 validateattributes(f,{'function_handle'},{'size',[1,1]},1);
 validateattributes(x,{'double'},{},2);
 validateattributes(y,{'double'},{},3);
 assert(isequal(size(x),size(y)),'Mismatch of input sizes x<->y!');
 if nargin < 4, verbosity = 1; end
-validateattributes(verbose,{'double'},{'size',[1,1],'nonnegative','integer'},4);
+validateattributes(verbosity,{'double'},{'size',[1,1],'nonnegative','integer'},4);
 
 % Get fits of SNR differences
 fString = func2str(f);
@@ -21,36 +21,40 @@ if ~isequal(paramIdx,1:nParams)
 end
 
 % Get symbolic Jacobian variables
-P = cellfun(@(x) replace(upper(x),{'(',')'},''),params,'UniformOutput',false);
-FString = ['F = ',fString(7:end)];
-FString = replace(FString,'.','');
-FString = replace(FString,'x','X');
-for i = 1:nParams, FString = replace(FString,params{i},P{i}); end
-eval(['syms X ',strjoin(P,' ')]);
-eval(sprintf('%s;',FString));
+try
+    P = cellfun(@(x) replace(upper(x),{'(',')'},''),params,'UniformOutput',false);
+    FString = ['F = ',fString(7:end)];
+    FString = replace(FString,'.','');
+    FString = replace(FString,'x','X');
+    for i = 1:nParams, FString = replace(FString,params{i},P{i}); end
+    eval(['syms X ',strjoin(P,' ')]);
+    eval(sprintf('%s;',FString));
 
-JP = cell(1,nParams);
-JX = cell(1,nParams);
-symbolsToDerivate = {'X','P'};
-for i = 1:nParams
-    for iSymbol = 1:length(symbolsToDerivate)
-        if iSymbol == 'X'
-            s = char(diff(F,X));
-        else
-            s = char(diff(F,sprintf('%s%d',symbolsToDerivate{iSymbol},i)));
-        end
-        s = replace(s,'X','x');
-        s = replace(s,'*','.*');
-        s = replace(s,'/','./');
-        s = replace(s,'^','.^');
-        for j = 1:nParams, s = replace(s,P{j},params{j}); end
-        
-        if iSymbol == 'X'
-            JX{i} = str2func(['@(x,p) ',s]);
-        else
-            JP{i} = str2func(['@(x,p) ',s]);
+    JP = cell(1,nParams);
+    JX = cell(1,nParams);
+    symbolsToDerivate = {'X','P'};
+    for i = 1:nParams
+        for iSymbol = 1:length(symbolsToDerivate)
+            if iSymbol == 'X'
+                s = char(diff(F,X));
+            else
+                s = char(diff(F,sprintf('%s%d',symbolsToDerivate{iSymbol},i)));
+            end
+            s = replace(s,'X','x');
+            s = replace(s,'*','.*');
+            s = replace(s,'/','./');
+            s = replace(s,'^','.^');
+            for j = 1:nParams, s = replace(s,P{j},params{j}); end
+
+            if iSymbol == 'X'
+                JX{i} = str2func(['@(x,p) ',s]);
+            else
+                JP{i} = str2func(['@(x,p) ',s]);
+            end
         end
     end
+catch
+    fprintf('Cannot symbolically derive function "%s".\n',fString);
 end
 
 
@@ -59,21 +63,26 @@ end
 options = optimset('MaxIter',1000,'TolFun',1e-6,'TolX',1e-6);%,'Display','iter');
 sse = @(p) sum((y - f(x,p)).^2);
 p0 = zeros(1,nParams);
-%p0 = 0.001*randn(1,nParams); % Often converge to local minimum
+%p0 = [20,-6/90,10,-3/90]; % Useful for piecewise linear fit
+%p0 = randn(1,nParams); % Often converge to local minimum
 
 % Optimization via 'fminsearch' function
-[p,min_sse,exitflag,output] = fminsearch(sse,p0,options);
+ [p,min_sse,exitflag,output] = fminsearch(sse,p0,options);
 funfit = @(x) f(x,p);
 
 % Get covariance matrix of fit parameters
 MSE = min_sse/(length(x) - nParams);
 J = nan(length(x),nParams);
-for i = 1:length(params)
-    J(:,i) = JP{i}(x);
+for i = 1:nParams
+    try
+        J(:,i) = JP{i}(x);
+    catch
+        pCov = nan(nParams);
+    end
 end
-pCov = J'*J\MSE;
+if exist('J','var'), pCov = inv(J'*J)*MSE; end
 pStd = sqrt(diag(pCov))';
-fBound = @(x,t) funfit(x) + t*MSE;%sqrt(p*pCov*p');
+fBound = @(x,t) funfit(x) + t*MSE;
 
 % Development figure
 if verbosity > 0
@@ -93,8 +102,16 @@ if verbosity > 1
     plot(x,y,'k.','DisplayName','data'); hold on;
     polyFit = polyfit(x,y,3);
     plot(xPlot,polyval(polyFit,xPlot),'-','LineWidth',5,'Color',[.5,.5,.5],'DisplayName','polyfit');
-    plot(xPlot,f(xPlot,p0),'--','LineWidth',5,'DisplayName','initial');
-    plot(xPlot,funfit(xPlot),'r-','LineWidth',3,'DisplayName','optimized SSE');
+    if length(f(xPlot,p0)) == 1
+        plot(xPlot,ones(size(xPlot))*f(xPlot,p0),'--','LineWidth',5,'DisplayName','initial');
+    else
+        plot(xPlot,f(xPlot,p0),'--','LineWidth',5,'DisplayName','initial');
+    end
+    fitfunVals = funfit(xPlot);
+    if ~isequal(size(xPlot),size(fitfunVals))
+        fitfunVals = ones(size(xPlot))*fitfunVals;
+    end
+    plot(xPlot,fitfunVals,'r-','LineWidth',3,'DisplayName','optimized SSE');
     plot(xPlot,f(xPlot,p+pStd),'r--','DisplayName','fit bounds');
     plot(xPlot,f(xPlot,p-pStd),'r--','HandleVisibility','off');
     patchObj = patch('XData',[xPlot,fliplr(xPlot),xPlot(1)],'YData',[fBound(xPlot,-tBound),fliplr(fBound(xPlot,tBound)),fBound(xPlot(1),-tBound)]);

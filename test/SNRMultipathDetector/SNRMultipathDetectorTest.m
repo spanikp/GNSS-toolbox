@@ -25,12 +25,23 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         function testSNRMultipathDetectorConstructor_2frequencies(obj)
             opts = SNRMultipathDetectorOptions();
             opts.snrIdentifiers = {'S1C','S2W'};
-            snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
+            SNRMultipathDetector(obj.obsrnxSatpos,opts);
+        end
+        function testSNRMultipathDetectorConstructor_2frequencies_customFuncs(obj)
+            opts = SNRMultipathDetectorOptions();
+            opts.snrIdentifiers = {'S1C','S2W'};
+            opts.verbosity = 1;
+            opts.fitByOptimization = true;
+            opts.funcs = {@(x,p) piecewiseConstant(x,[p(1),p(2),p(3),p(4)]), @(x,p)0, @(x,p) piecewiseConstant(x,[p(1),p(2),p(3),p(4)])};
+            %opts.funcs = {@(x,p) piecewiseLinear(x,[p(1),p(2),p(3),p(4)]), @(x,p)0, @(x,p) piecewiseLinear(x,[p(1),p(2),p(3),p(4)])};
+            SNRMultipathDetector(obj.obsrnxSatpos,opts);
         end
         function testSNRMultipathDetectorConstructor_3frequencies(obj)
             opts = SNRMultipathDetectorOptions();
-            %opts.verbosity = 2;
+            opts.verbosity = 2;
+            opts.fitByOptimization = true;
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
+            %snrDetector
         end
     end
 end

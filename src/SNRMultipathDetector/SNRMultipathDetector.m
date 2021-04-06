@@ -61,11 +61,11 @@ classdef SNRMultipathDetector
             snrCalAll = SNRMultipathCalibration(obj.snr,obj.elevation,obj.sats,obj.t0,'all',opts);
             if ~isempty(snrCalAll.fit), obj.snrCal.all = snrCalAll; end
             
-            snrCalBlock = SNRMultipathCalibration(obj.snr,obj.elevation,obj.sats,obj.t0,'block',opts);
-            if ~isempty(snrCalBlock.fit), obj.snrCal.block = snrCalBlock; end
-            
-            snrCalIndividual = SNRMultipathCalibration(obj.snr,obj.elevation,obj.sats,obj.t0,'individual',opts);
-            if ~isempty(snrCalIndividual.fit), obj.snrCal.individual = snrCalIndividual; end
+%             snrCalBlock = SNRMultipathCalibration(obj.snr,obj.elevation,obj.sats,obj.t0,'block',opts);
+%             if ~isempty(snrCalBlock.fit), obj.snrCal.block = snrCalBlock; end
+%             
+%             snrCalIndividual = SNRMultipathCalibration(obj.snr,obj.elevation,obj.sats,obj.t0,'individual',opts);
+%             if ~isempty(snrCalIndividual.fit), obj.snrCal.individual = snrCalIndividual; end
         end
         
         % Getter methods
