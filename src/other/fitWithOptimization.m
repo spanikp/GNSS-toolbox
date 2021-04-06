@@ -1,10 +1,10 @@
-function funfit = fitWithOptimization(f,x,y,showPlot)
+function funfit = fitWithOptimization(f,x,y,verbose)
 validateattributes(f,{'function_handle'},{'size',[1,1]},1);
 validateattributes(x,{'double'},{},2);
 validateattributes(y,{'double'},{},3);
 assert(isequal(size(x),size(y)),'Mismatch of input sizes x<->y!');
-if nargin < 4, showPlot = false; end
-validateattributes(showPlot,{'logical'},{'size',[1,1]},4);
+if nargin < 4, verbosity = 1; end
+validateattributes(verbose,{'double'},{'size',[1,1],'nonnegative','integer'},4);
 
 % Get fits of SNR differences
 fString = func2str(f);
@@ -23,7 +23,7 @@ end
 % Get symbolic Jacobian variables
 P = cellfun(@(x) replace(upper(x),{'(',')'},''),params,'UniformOutput',false);
 FString = ['F = ',fString(7:end)];
-%FString = replace(FString,'.','');
+FString = replace(FString,'.','');
 FString = replace(FString,'x','X');
 for i = 1:nParams, FString = replace(FString,params{i},P{i}); end
 eval(['syms X ',strjoin(P,' ')]);
@@ -55,19 +55,14 @@ end
 
 
 % Optimize given function "f" for given data pairs "(x,y)"
+% Subject of minimization is SSE (sum of squared errors)
 options = optimset('MaxIter',1000,'TolFun',1e-6,'TolX',1e-6);%,'Display','iter');
-
 sse = @(p) sum((y - f(x,p)).^2);
 p0 = zeros(1,nParams);
-%p0 = 0.001*randn(1,nParams); % Often converge to wrong minimum
+%p0 = 0.001*randn(1,nParams); % Often converge to local minimum
 
-% Use more specialized function from Optimization toolbox if available
-%if license('test','Optimization_Toolbox')
-%    p = fminunc(sse,p0,options);
-%else
-    [p,min_sse,exitflag,output] = fminsearch(sse,p0,options);
-%end
-
+% Optimization via 'fminsearch' function
+[p,min_sse,exitflag,output] = fminsearch(sse,p0,options);
 funfit = @(x) f(x,p);
 
 % Get covariance matrix of fit parameters
@@ -76,24 +71,22 @@ J = nan(length(x),nParams);
 for i = 1:length(params)
     J(:,i) = JP{i}(x);
 end
-pCov = inv(J'*J)*MSE;
-pStd = sqrt(diag(pCov));
-fBound = @(x,t) funfit(x) + t*sqrt(p*pCov*p');
-
-
-fprintf('%s\nOptimized parameters of fitted function:\n  %s\n\n',repmat('=',[1,49]),func2str(f));
-fprintf('+---------------+---------------+---------------+\n')
-fprintf('|   Parameter   |     Value     |     Sigma     |\n');
-fprintf('+---------------+---------------+---------------+\n')
-for i = 1:nParams
-    fprintf('| %s|%13.8f  |%13.8f  |\n',pad(params{i},14),p(i),pStd(i));
-end
-fprintf('+---------------+---------------+---------------+\n\n')
-
-
+pCov = J'*J\MSE;
+pStd = sqrt(diag(pCov))';
+fBound = @(x,t) funfit(x) + t*MSE;%sqrt(p*pCov*p');
 
 % Development figure
-if showPlot
+if verbosity > 0
+    fprintf('%s\nOptimized parameters of fitted function:\n  %s\n\n',repmat('=',[1,49]),func2str(f));
+    fprintf('+---------------+---------------+---------------+\n')
+    fprintf('|   Parameter   |     Value     |     Sigma     |\n');
+    fprintf('+---------------+---------------+---------------+\n')
+    for i = 1:nParams
+        fprintf('| %s|%13.8f  |%13.8f  |\n',pad(params{i},14),p(i),pStd(i));
+    end
+    fprintf('+---------------+---------------+---------------+\n\n')
+end
+if verbosity > 1
     figure;
     tBound = 2;
     xPlot = 0:90;
@@ -102,14 +95,14 @@ if showPlot
     plot(xPlot,polyval(polyFit,xPlot),'-','LineWidth',5,'Color',[.5,.5,.5],'DisplayName','polyfit');
     plot(xPlot,f(xPlot,p0),'--','LineWidth',5,'DisplayName','initial');
     plot(xPlot,funfit(xPlot),'r-','LineWidth',3,'DisplayName','optimized SSE');
-    plot(xPlot,f(xPlot,p+pStd'),'r--','DisplayName','fit bounds');
-    plot(xPlot,f(xPlot,p-pStd'),'r--','HandleVisibility','off');
-    %patchObj = patch('XData',[xPlot,fliplr(xPlot),xPlot(1)],'YData',[fBound(xPlot,-tBound),fliplr(fBound(xPlot,tBound)),fBound(xPlot(1),-tBound)]);
-    %set(patchObj,'FaceColor','r','EdgeColor','none','FaceAlpha',0.05);
+    plot(xPlot,f(xPlot,p+pStd),'r--','DisplayName','fit bounds');
+    plot(xPlot,f(xPlot,p-pStd),'r--','HandleVisibility','off');
+    patchObj = patch('XData',[xPlot,fliplr(xPlot),xPlot(1)],'YData',[fBound(xPlot,-tBound),fliplr(fBound(xPlot,tBound)),fBound(xPlot(1),-tBound)]);
+    set(patchObj,'FaceColor','r','EdgeColor','none','FaceAlpha',0.1);
     yr = max(y) - min(y);
     ylim([min(y)-0.05*yr,max(y)+0.05*yr])
     legend('Location','NorthEast');
-    title(sprintf('Optimization fitted function "%s"\newlineexitFlag=%d, SSE=%.3f, iterations=%d',...
+    title(sprintf('Optimization fitted function "%s"\nexitFlag=%d, SSE=%.3f, iterations=%d',...
         func2str(f),exitflag,min_sse,output.iterations));
 end
 
