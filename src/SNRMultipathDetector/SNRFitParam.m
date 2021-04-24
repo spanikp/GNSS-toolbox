@@ -14,15 +14,14 @@ classdef SNRFitParam
         elevCoverageBins_C12 (1,:) double
         elevCoverageBins_C15 (1,:) double
         elevCoverageBins_S (1,:) double
+        
+        fitIntervals_C12 (:,2) double
+        fitIntervals_C15 (:,2) double
+        fitIntervals_S (:,2) double
     end
     properties (Dependent)
         nFreq (1,1) double
         elevCoverage (1,3) double
-    end
-    properties (Access = private)
-        fitIntervals_C12 (:,2) double
-        fitIntervals_C15 (:,2) double
-        fitIntervals_S (:,2) double
     end
     methods
         function obj = SNRFitParam(gnss,satIDs,blockIDs,fitC12,fitC15,fitS,sigmaC12,sigmaC15,sigmaS,elevCoverageBins)

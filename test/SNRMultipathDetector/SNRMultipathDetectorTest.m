@@ -7,7 +7,6 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         function setupTest(obj)
             addpath(genpath('../../src'))
             opt = OBSRNX.getDefaults();
-            opt.filtergnss = 'G';
             obj.obsrnx = OBSRNX('../data/JAB1080M.19o',opt);
             obj.obsrnxSatpos = obj.obsrnx.computeSatPosition('broadcast','../data/brdc');
             %obj.obsrnx = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
@@ -47,6 +46,40 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
             opts.fitByOptimization = true;
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
             %snrDetector
+        end
+        function testSNRMultipathDetector_plotCalibrationFit(obj)
+            try
+                for i = 1:length(obj.obsrnxSatpos.gnss)
+                    gnss = obj.obsrnxSatpos.gnss(i);
+                    obsTypes = obj.obsrnxSatpos.obsTypes.(gnss);
+                    availableSNR = obsTypes(cellfun(@(x) startsWith(x,'S'),obsTypes));
+
+                    tmp = nchoosek(availableSNR,2);
+                    snr2combs = cell(size(tmp,1),1);
+                    for j = 1:size(tmp,1)
+                        snr2combs{j} = tmp(j,:);
+                    end
+                    tmp = nchoosek(availableSNR,3);
+                    snr3combs = cell(size(tmp,1),1);
+                    for j = 1:size(tmp,1)
+                        snr3combs{j} = tmp(j,:);
+                    end
+                    allCombsSNR = [snr2combs; snr3combs];
+                    for j = 1:length(allCombsSNR)
+                        opts = SNRMultipathDetectorOptions();
+                        opts.gnss = gnss;
+                        opts.snrIdentifiers = allCombsSNR{j};
+                        snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
+                        snrDetector.plotCalibrationFit('all');
+                        snrDetector.plotCalibrationFit('block');
+                        snrDetector.plotCalibrationFit('individual');
+                        close all;
+                    end
+                end
+            catch ME
+                fprintf('\nFAILING TEST: gnss=%s, combination=%s\n',gnss,strjoin(allCombsSNR{j},','));
+                rethrow(ME);
+            end
         end
     end
 end

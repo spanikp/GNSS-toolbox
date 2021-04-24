@@ -47,6 +47,13 @@ classdef SatelliteInfo
                         end
                 end
             end
+            
+            % Handling Beidou satellites as one block, since in
+            % SATELLITE.I14 there are no information about Beidou sats!
+            if strcmp(gnss,'C')
+                satsBlock = ones(size(satsNo));
+                return;
+            end
         end
     end
     methods (Access = private)
