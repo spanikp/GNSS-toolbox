@@ -67,7 +67,7 @@ p0 = zeros(1,nParams);
 %p0 = randn(1,nParams); % Often converge to local minimum
 
 % Optimization via 'fminsearch' function
- [p,min_sse,exitflag,output] = fminsearch(sse,p0,options);
+[p,min_sse,exitflag,output] = fminsearch(sse,p0,options);
 funfit = @(x) f(x,p);
 
 % Get covariance matrix of fit parameters
