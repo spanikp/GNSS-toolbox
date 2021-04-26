@@ -7,10 +7,10 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         function setupTest(obj)
             addpath(genpath('../../src'))
             opt = OBSRNX.getDefaults();
-            obj.obsrnx = OBSRNX('../data/JAB1080M.19o',opt);
-            obj.obsrnxSatpos = obj.obsrnx.computeSatPosition('broadcast','../data/brdc');
-            %obj.obsrnx = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
-            %obj.obsrnxSatpos = OBSRNX.loadFromMAT('../data/JAB1080MSatpos.mat');
+            %obj.obsrnx = OBSRNX('../data/JAB1080M.19o',opt);
+            %obj.obsrnxSatpos = obj.obsrnx.computeSatPosition('broadcast','../data/brdc');
+            obj.obsrnx = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
+            obj.obsrnxSatpos = OBSRNX.loadFromMAT('../data/JAB1080MSatpos.mat');
             
             % Export and load files from MAT (useful for local debug)
             %obj.obsrnx.saveToMAT('../data/JAB1080M.mat');
@@ -45,7 +45,6 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
             opts.verbosity = 2;
             opts.fitByOptimization = true;
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
-            %snrDetector
         end
         function testSNRMultipathDetector_plotCalibrationFit(obj)
             try
@@ -80,6 +79,12 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
                 fprintf('\nFAILING TEST: gnss=%s, combination=%s\n',gnss,strjoin(allCombsSNR{j},','));
                 rethrow(ME);
             end
+        end
+        function testOBSRNX_detectMultipathViaSNR(obj)
+            opts = SNRMultipathDetectorOptions();
+            snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
+            obj.obsrnxSatpos.detectMultipathViaSNR(snrDetector);
+            
         end
     end
 end

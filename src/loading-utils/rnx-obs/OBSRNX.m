@@ -771,6 +771,19 @@ classdef OBSRNX
             fclose(fout);
         end
     end
+    methods
+        % Multipath detection methods
+        function [isMultipath, multipathFactor] = detectMultipathViaSNR(obj,snrDetector)
+            validateattributes(snrDetector,{'SNRMultipathDetector'},{'size',[1,1]},2);
+            assert(ismember(snrDetector.gnss,obj.gnss),sprintf('Input object "snrDetector" is of GNSS "%s", which is not present in OBSRNX!',snrDetector.gnss));
+            snrAvailable = strjoin(obj.obsTypes.(snrDetector.gnss)(cellfun(@(x) startsWith(x,'S'),obj.obsTypes.(snrDetector.gnss))),', ');
+            snrRequired = strjoin(snrDetector.snrIdentifiers(cellfun(@(x) startsWith(x,'S'),snrDetector.snrIdentifiers)),', ');
+            assert(all(ismember(snrDetector.snrIdentifiers,obj.obsTypes.(snrDetector.gnss))),...
+                sprintf('Not all required observations are present in OBSRNX:\n    available observations: %s\n    required SNR observations: %s',snrAvailable,snrRequired));
+            assert(~isempty(obj.satpos),'Satellite positions needs to be computed previously!\nUse method OBSRX.computeSatPosition()');
+            
+        end
+    end
     methods (Access = private)
         function obj = loadRNXobservation(obj,param)
             % Initialize satellite info object
