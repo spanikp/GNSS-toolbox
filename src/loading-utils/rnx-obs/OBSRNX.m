@@ -786,7 +786,7 @@ classdef OBSRNX
                 sprintf('Not all required observations are present in OBSRNX for %s system:\n    available observations: %s\n    required SNR observations: %s',gnss_,snrAvailable,snrRequired));
             assert(~isempty(obj.satpos),'Satellite positions needs to be computed before multipath detection with SNR variability!\nUse method OBSRX.computeSatPosition() before calling OBSRNX.detectMultipathViaSNR()!');
             
-            fitSRatio = nan(size(obj.t,1),length(obj.sat.(gnss_)));
+            fitSratio = nan(size(obj.t,1),length(obj.sat.(gnss_)));
             satsToDetect = obj.satpos([obj.satpos.gnss] == gnss_).satList;
             for i = 1:length(satsToDetect)
                 satNo = satsToDetect(i);
@@ -797,9 +797,12 @@ classdef OBSRNX
                 % satellite, if not detection status will be NaN
                 if all(sum(satSNR) ~= 0)
                     idxInObs = satNo == obj.sat.(gnss_);
-                    fitSRatio(:,idxInObs) = snrDetector.compareToCalibration(satNo,satElev,satSNR,calModeToUse);
+                    fitSratio(:,idxInObs) = snrDetector.compareToCalibration(satNo,satElev,satSNR,calModeToUse);
                 end
             end
+            isMultipath = fitSratio > 0 & fitSratio < 3;
+            isMultipathConfidence = fitSratio(isMultipath)./3;
+            %figure; plot(fitSratio)    
         end
     end
     methods (Access = private)

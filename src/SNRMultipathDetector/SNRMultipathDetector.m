@@ -205,7 +205,11 @@ classdef SNRMultipathDetector
             snrCalToUse = obj.getCalibrationByMode(calModeToUse);
             fitToUse = snrCalToUse.fit;
             
-            fitSratio = false(size(satSNR,1),1);
+            % Replace 0 by nan in SNR data
+            satSNR(satSNR == 0) = nan;
+            
+            % Initialize output to nana ans then ccompute SNR difference used for multipath detection
+            fitSratio = nan(size(satSNR,1),1);
             if ismember(calModeToUse,obj.usableSnrCal)
                 dSNR1 = movmean(satSNR(:,1) - satSNR(:,2),obj.opts.snrDifferenceSmoothing(1));
                 C12 = dSNR1 - fitToUse.fitC12(satElev);

@@ -84,7 +84,7 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         function testOBSRNX_detectMultipathViaSNR(obj)
             opts = SNRMultipathDetectorOptions();
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
-            obj.obsrnxSatpos.detectMultipathViaSNR(snrDetector);
+            [isMultipath,isMultipathConfidence] = obj.obsrnxSatpos.detectMultipathViaSNR(snrDetector);
             
         end
     end
