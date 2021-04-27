@@ -1,3 +1,9 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Class SNRMultipathDetector encapsulated all data used for SNR calibration together
+% with estimated reference calibration functions for all SNR calibration scenarios.
+%
+% 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 classdef SNRMultipathDetector
     properties (SetAccess = protected)
         gnss (1,1) char
@@ -15,6 +21,7 @@ classdef SNRMultipathDetector
     properties (Dependent)
         nSNR
         nPoly
+        usableSnrCal
     end
     methods
         function obj = SNRMultipathDetector(obsrnx,opts)
@@ -64,21 +71,20 @@ classdef SNRMultipathDetector
             % Estimate calibration parameters for 'all', 'block' and 'individual' calibration mode
             snrCalTypes = {'all','block','individual'};
             for iCalType = 1:length(snrCalTypes)
-                snrCalType = snrCalTypes{iCalType};
-                snrCal = SNRMultipathCalibration(obj.snr,obj.elevation,obj.sats,obj.t0,snrCalType,opts);
-                if ~isempty(snrCal.fit), obj.snrCal.(snrCalType) = snrCal; end
+                calibrationMode = SNRCalibrationMode.(upper(snrCalTypes{iCalType}));
+                snrCal = SNRMultipathCalibration(obj.snr,obj.elevation,obj.sats,obj.t0,calibrationMode,opts);
+                if snrCal.isUsable
+                    obj.snrCal.(calibrationMode.toString()) = snrCal;
+                end
             end
         end
         function plotCalibrationFit(obj,calibrationMode)
-            if nargin == 1, calibrationMode = 'all'; end
-            validateattributes(calibrationMode,{'char'},{'size',[1,nan]},2);
-            validatestring(calibrationMode,{'all','individual','block'});
-            availableCalibrations = fieldnames(obj.snrCal);
-            assert(ismember(calibrationMode,availableCalibrations),...
-                sprintf('Required calibrationMode: "%s" not available!',calibrationMode));
+            validateattributes(calibrationMode,{'SNRCalibrationMode'},{'size',[1,1]},2);
+            if nargin == 1, calibrationMode = SNRCalibrationMode.ALL; end
+            assert(ismember(calibrationMode,obj.usableSnrCal),sprintf('Required calibrationMode: "%s" not available!',calibrationMode));
             
             % Get required calibration object
-            snr_cal = obj.snrCal.(calibrationMode);
+            snr_cal = obj.getCalibrationByMode(calibrationMode);
             
             % Get constants
             elevToPlot = 0:90;
@@ -188,10 +194,43 @@ classdef SNRMultipathDetector
                 %%%%%%%%%%%%%%% End of figure S-statistics %%%%%%%%%%%%%%%%
             end
         end
+        function fitSratio = compareToCalibration(obj,satNo,satElev,satSNR,calModeToUse)
+            validateattributes(satNo,{'double'},{'size',[1,1]},2);
+            validateattributes(satElev,{'double'},{'size',[nan,1]},3);
+            validateattributes(satSNR,{'double'},{},4);
+            validateattributes(calModeToUse,{'SNRCalibrationMode'},{'size',[1,1]},5);
+            assert(size(satSNR,2) <= 3,'Number of columns in "SNRdata" has to be 2 or 2 according SNR detector identifiers!"');
+            assert(isequal(size(satElev,1),size(satSNR,1)),'Mismatch size between SNR data and provided elevations!');
+            nSNRfreq = size(satSNR,2);
+            snrCalToUse = obj.getCalibrationByMode(calModeToUse);
+            fitToUse = snrCalToUse.fit;
+            
+            fitSratio = false(size(satSNR,1),1);
+            if ismember(calModeToUse,obj.usableSnrCal)
+                dSNR1 = movmean(satSNR(:,1) - satSNR(:,2),obj.opts.snrDifferenceSmoothing(1));
+                C12 = dSNR1 - fitToUse.fitC12(satElev);
+                if nSNRfreq == 3
+                    dSNR2 = movmean(satSNR(:,1) - satSNR(:,3),obj.opts.snrDifferenceSmoothing(2));
+                    C15 = dSNR2 - fitToUse.fitC15(satElev);
+                else
+                    C15 = zeros(size(C12));
+                end
+                S = sqrt(C12.^2 + C15.^2);
+                fitSratio = (S - fitToUse.fitS(satElev))./fitToUse.sigmaS;
+            end
+        end
         
         % Getter methods
         function value = get.nSNR(obj)
             value = length(obj.snrIdentifiers);
+        end
+        function value = get.usableSnrCal(obj)
+            fnames = fieldnames(obj.snrCal);
+            snrCalAvailable = [];
+            for i = 1:length(fnames)
+                snrCalAvailable = [snrCalAvailable,SNRCalibrationMode.(upper(fnames{i}))];
+            end
+            value = snrCalAvailable;
         end
         
     end
@@ -222,6 +261,11 @@ classdef SNRMultipathDetector
                     elev = [elev; elevTmp];
                 end
             end
+        end
+        function cal = getCalibrationByMode(obj,calMode)
+            validateattributes(calMode,{'SNRCalibrationMode'},{'size',[1,1]},2);
+            mustBeMember(calMode,obj.usableSnrCal);
+            cal = obj.snrCal.(calMode.toString());
         end
     end
 end

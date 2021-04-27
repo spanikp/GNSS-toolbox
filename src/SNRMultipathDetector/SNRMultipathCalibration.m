@@ -1,17 +1,20 @@
 classdef SNRMultipathCalibration
     properties (SetAccess = protected)
-        calibrationMode (1,:) char {mustBeMember(calibrationMode,{'all','individual','block'})} = 'all'
+        calibrationMode (1,1) SNRCalibrationMode = SNRCalibrationMode.ALL
         fit (1,:) SNRFitParam = reshape(SNRFitParam.empty(),[1,0])
+    end
+    properties (Dependent)
+        isUsable (1,1) logical
     end
     methods
         function obj = SNRMultipathCalibration(snrData,elevation,satIDs,t0,calibrationMode,opts)
             validateattributes(snrData,{'cell'},{'size',[1,nan]},1);
             validateattributes(elevation,{'double'},{},2);
-            validateattributes(t0,{'datetime'},{'size',[1,1]},3);
-            validateattributes(calibrationMode,{'char'},{'size',[1,nan]},4);
-            validatestring(calibrationMode,{'all','block','individual'});
-            if nargin < 5, opts = SNRMultipathDetectorOptions(); end
-            validateattributes(opts,{'SNRMultipathDetectorOptions'},{'size',[1,1]},5);
+            validateattributes(satIDs,{'double'},{'size',[1,nan]},3);
+            validateattributes(t0,{'datetime'},{'size',[1,1]},4);
+            validateattributes(calibrationMode,{'SNRCalibrationMode'},{'size',[1,1]},5);
+            if nargin < 6, opts = SNRMultipathDetectorOptions(); end
+            validateattributes(opts,{'SNRMultipathDetectorOptions'},{'size',[1,1]},6);
             
             assert(all(cellfun(@(x) isequal(size(x),size(elevation)),snrData)),'Input data size mismatch: SNR <-> Elevation!');
             assert(length(satIDs) == length(unique(satIDs)),'Duplicity in input satellite identifiers!');
@@ -35,10 +38,10 @@ classdef SNRMultipathCalibration
             
             iValid = 0;
             switch obj.calibrationMode
-                case 'all'
+                case SNRCalibrationMode.ALL
                     elevBinsMinimal = opts.elevBinsMinimal([1,3]);
                     obj.fit = SNRMultipathCalibration.getFit(dSNR{1},dSNR{2},elevation,satIDs,blockIDs,elevBinsMinimal,opts);
-                case 'block'
+                case SNRCalibrationMode.BLOCK
                     elevBinsMinimal = opts.elevBinsMinimal([1,2]);
                     uBlocks = unique(blockIDs);
                     for i = 1:length(uBlocks)
@@ -52,7 +55,7 @@ classdef SNRMultipathCalibration
                             obj.fit(1,iValid) = fitObject;
                         end
                     end
-                case 'individual'
+                case SNRCalibrationMode.INDIVIDUAL
                     elevBinsMinimal = opts.elevBinsMinimal([1,1]);
                     for i = 1:length(satIDs)
                         fitObject = SNRMultipathCalibration.getFit(dSNR{1}(:,i),dSNR{2}(:,i),elevation(:,i),...
@@ -65,6 +68,13 @@ classdef SNRMultipathCalibration
                             obj.fit(1,iValid) = fitObject;
                         end
                     end
+            end
+        end
+        function value = get.isUsable(obj)
+            if ~isempty(obj.fit)
+                value  = true;
+            else
+                value = false;
             end
         end
     end

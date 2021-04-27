@@ -39,6 +39,7 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
             opts.funcs = {@(x,p) piecewiseConstant(x,[p(1),p(2),p(3),p(4),p(5),p(6)]), @(x,p)0, @(x,p) piecewiseConstant(x,[p(1),p(2),p(3),p(4)])};
             %opts.funcs = {@(x,p) piecewiseLinear(x,[p(1),p(2),p(3),p(4)]), @(x,p)0, @(x,p) piecewiseLinear(x,[p(1),p(2),p(3),p(4)])};
             SNRMultipathDetector(obj.obsrnxSatpos,opts);
+            close all;
         end
         function testSNRMultipathDetectorConstructor_3frequencies(obj)
             opts = SNRMultipathDetectorOptions();
@@ -69,9 +70,9 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
                         opts.gnss = gnss;
                         opts.snrIdentifiers = allCombsSNR{j};
                         snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
-                        snrDetector.plotCalibrationFit('all');
-                        snrDetector.plotCalibrationFit('block');
-                        snrDetector.plotCalibrationFit('individual');
+                        snrDetector.plotCalibrationFit(SNRCalibrationMode.ALL);
+                        snrDetector.plotCalibrationFit(SNRCalibrationMode.BLOCK);
+                        snrDetector.plotCalibrationFit(SNRCalibrationMode.INDIVIDUAL);
                         close all;
                     end
                 end

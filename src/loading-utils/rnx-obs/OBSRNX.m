@@ -773,15 +773,33 @@ classdef OBSRNX
     end
     methods
         % Multipath detection methods
-        function [isMultipath, multipathFactor] = detectMultipathViaSNR(obj,snrDetector)
+        function [isMultipath,isMultipathConfidence] = detectMultipathViaSNR(obj,snrDetector,calModeToUse)
             validateattributes(snrDetector,{'SNRMultipathDetector'},{'size',[1,1]},2);
-            assert(ismember(snrDetector.gnss,obj.gnss),sprintf('Input object "snrDetector" is of GNSS "%s", which is not present in OBSRNX!',snrDetector.gnss));
-            snrAvailable = strjoin(obj.obsTypes.(snrDetector.gnss)(cellfun(@(x) startsWith(x,'S'),obj.obsTypes.(snrDetector.gnss))),', ');
-            snrRequired = strjoin(snrDetector.snrIdentifiers(cellfun(@(x) startsWith(x,'S'),snrDetector.snrIdentifiers)),', ');
-            assert(all(ismember(snrDetector.snrIdentifiers,obj.obsTypes.(snrDetector.gnss))),...
-                sprintf('Not all required observations are present in OBSRNX:\n    available observations: %s\n    required SNR observations: %s',snrAvailable,snrRequired));
-            assert(~isempty(obj.satpos),'Satellite positions needs to be computed previously!\nUse method OBSRX.computeSatPosition()');
+            if nargin < 3, calModeToUse = SNRCalibrationMode(0); end
+            validateattributes(calModeToUse,{'SNRCalibrationMode'},{'size',[1,1]},3);
+            assert(ismember(snrDetector.gnss,[obj.satpos.gnss]),sprintf('Input object "snrDetector" is of GNSS "%s", which is not present in OBSRNX.satpos!',snrDetector.gnss));
             
+            gnss_ = snrDetector.gnss;
+            snrAvailable = strjoin(obj.obsTypes.(gnss_)(cellfun(@(x) startsWith(x,'S'),obj.obsTypes.(gnss_))),', ');
+            snrRequired = strjoin(snrDetector.snrIdentifiers(cellfun(@(x) startsWith(x,'S'),snrDetector.snrIdentifiers)),', ');
+            assert(all(ismember(snrDetector.snrIdentifiers,obj.obsTypes.(gnss_))),...
+                sprintf('Not all required observations are present in OBSRNX for %s system:\n    available observations: %s\n    required SNR observations: %s',gnss_,snrAvailable,snrRequired));
+            assert(~isempty(obj.satpos),'Satellite positions needs to be computed before multipath detection with SNR variability!\nUse method OBSRX.computeSatPosition() before calling OBSRNX.detectMultipathViaSNR()!');
+            
+            fitSRatio = nan(size(obj.t,1),length(obj.sat.(gnss_)));
+            satsToDetect = obj.satpos([obj.satpos.gnss] == gnss_).satList;
+            for i = 1:length(satsToDetect)
+                satNo = satsToDetect(i);
+                %satBlockNo = obj.satblock(obj.sat.(gnss_) == satNo);
+                satSNR = obj.getObservation(gnss_,satNo,snrDetector.snrIdentifiers);
+                [satElev,satAzi,satRange] = obj.getLocal(gnss_,satNo);
+                % Check if all SNR data are available for particular
+                % satellite, if not detection status will be NaN
+                if all(sum(satSNR) ~= 0)
+                    idxInObs = satNo == obj.sat.(gnss_);
+                    fitSRatio(:,idxInObs) = snrDetector.compareToCalibration(satNo,satElev,satSNR,calModeToUse);
+                end
+            end
         end
     end
     methods (Access = private)
