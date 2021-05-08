@@ -775,7 +775,7 @@ classdef OBSRNX
         % Multipath detection methods
         function [isMultipath,isMultipathConfidence] = detectMultipathViaSNR(obj,snrDetector,calModeToUse)
             validateattributes(snrDetector,{'SNRMultipathDetector'},{'size',[1,1]},2);
-            if nargin < 3, calModeToUse = SNRCalibrationMode(0); end
+            if nargin < 3, calModeToUse = SNRCalibrationMode.ALL; end
             validateattributes(calModeToUse,{'SNRCalibrationMode'},{'size',[1,1]},3);
             assert(ismember(snrDetector.gnss,[obj.satpos.gnss]),sprintf('Input object "snrDetector" is of GNSS "%s", which is not present in OBSRNX.satpos!',snrDetector.gnss));
             
@@ -786,18 +786,41 @@ classdef OBSRNX
                 sprintf('Not all required observations are present in OBSRNX for %s system:\n    available observations: %s\n    required SNR observations: %s',gnss_,snrAvailable,snrRequired));
             assert(~isempty(obj.satpos),'Satellite positions needs to be computed before multipath detection with SNR variability!\nUse method OBSRX.computeSatPosition() before calling OBSRNX.detectMultipathViaSNR()!');
             
+            % fitSratio value represents how ratio of actual S-statistic
+            % value and S-statistic value taken from calibration divided by
+            % sigmaS computed during calibration fitting
             fitSratio = nan(size(obj.t,1),length(obj.sat.(gnss_)));
             satsToDetect = obj.satpos([obj.satpos.gnss] == gnss_).satList;
             for i = 1:length(satsToDetect)
                 satNo = satsToDetect(i);
                 %satBlockNo = obj.satblock(obj.sat.(gnss_) == satNo);
                 satSNR = obj.getObservation(gnss_,satNo,snrDetector.snrIdentifiers);
-                [satElev,satAzi,satRange] = obj.getLocal(gnss_,satNo);
+                [satElev,~,~] = obj.getLocal(gnss_,satNo);
+                
+                S = @(x) snrDetector.snrCal.all.fit.fitS(x);
+                sigmaS = snrDetector.snrCal.all.fit.sigmaS;
+                w = @(x,a,b) a*exp((90-x)./(90-b));
+                T = @(x,t,a,b) S(x) + w(x,a,b)*t*sigmaS;
+                
+                figure; es = 0:90;
+                plot(es,S(es),'k-','LineWidth',2); hold on;
+%                 plot(es,T(es,1,1/exp(1),es),'k--','LineWidth',0.5)
+%                 plot(es,T(es,1,2/exp(1),es),'b--','LineWidth',0.5)
+%                 plot(es,T(es,1,3/exp(1),es),'r--','LineWidth',0.5)
+                plot(es,T(es,1,0.7,10),'k--','LineWidth',1)
+                plot(es,T(es,2,0.7,10),'b--','LineWidth',1)
+                plot(es,T(es,3,0.7,10),'r--','LineWidth',1)
+                
+                
+                
+                
                 % Check if all SNR data are available for particular
                 % satellite, if not detection status will be NaN
                 if all(sum(satSNR) ~= 0)
                     idxInObs = satNo == obj.sat.(gnss_);
-                    fitSratio(:,idxInObs) = snrDetector.compareToCalibration(satNo,satElev,satSNR,calModeToUse);
+                    fitSratio(:,idxInObs) = snrDetector.compareToThreshold(satNo,satElev,satSNR,calModeToUse,thresholdFunction);
+                    %fitSratio(:,idxInObs) = snrDetector.compareToCalibration(satNo,satElev,satSNR,calModeToUse);
+                    snrDetector.classify
                 end
             end
             isMultipath = fitSratio > 0 & fitSratio < 3;

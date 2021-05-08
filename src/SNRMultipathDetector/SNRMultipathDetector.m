@@ -77,10 +77,13 @@ classdef SNRMultipathDetector
                     obj.snrCal.(calibrationMode.toString()) = snrCal;
                 end
             end
+            
+            % Compute threshold function(s)
+            obj = obj.getThresholdFunctions(opts.threshold_func,opts.threshold_significancy);
         end
         function plotCalibrationFit(obj,calibrationMode)
-            validateattributes(calibrationMode,{'SNRCalibrationMode'},{'size',[1,1]},2);
             if nargin == 1, calibrationMode = SNRCalibrationMode.ALL; end
+            validateattributes(calibrationMode,{'SNRCalibrationMode'},{'size',[1,1]},2);
             assert(ismember(calibrationMode,obj.usableSnrCal),sprintf('Required calibrationMode: "%s" not available!',calibrationMode));
             
             % Get required calibration object
@@ -242,7 +245,7 @@ classdef SNRMultipathDetector
         function [dSNR,elev] = getDifferences(obj,satNo,diffNo,removeNanFlag)
             validateattributes(satNo,{'double'},{'size',[1,nan],'integer'},2);
             validateattributes(diffNo,{'double'},{'size',[1,1],'integer'},3);
-            if nargin < 4, removeNanFlag = true; end
+            if nargin < 4, removeNanFlag = false; end
             validateattributes(removeNanFlag,{'logical'},{'size',[1,1]},4);
             mustBeMember(satNo,obj.sats);
             mustBeMember(diffNo,[1,2]);
@@ -270,6 +273,73 @@ classdef SNRMultipathDetector
             validateattributes(calMode,{'SNRCalibrationMode'},{'size',[1,1]},2);
             mustBeMember(calMode,obj.usableSnrCal);
             cal = obj.snrCal.(calMode.toString());
+        end
+        function obj = getThresholdFunctions(obj,w,significancy_percentage)
+            if nargin < 3, significancy_percentage = 0.95; end
+            validateattributes(w,{'function_handle'},{'size',[1,1]},2);
+            assert(startsWith(func2str(w),'@(x,t)'),'Incorrect function handle definition, has to match pattern "@(x,t)"!');
+            
+            for calibrationMode = obj.usableSnrCal
+                fits = obj.snrCal.(calibrationMode.toString()).fit;
+                for i = 1:length(fits)
+                    f = fits(i);
+                    S = f.fitS;
+                    s0 = f.sigmaS;
+                    T = @(x,t) S(x) + w(x,t)*s0;
+                    
+                    [d1,elev] = obj.getDifferences(f.sat,1);
+                    d1 = d1 - f.fitC12(elev);
+                    if obj.nSNR == 3
+                        d2 = obj.getDifferences(f.sat,2);
+                        d2 = d2 - f.fitC15(elev);
+                    else
+                        d2 = zeros(size(d1));
+                    end
+                    sel = ~isnan(d1) & ~isnan(d2);
+                    elev = elev(sel);
+                    s = sqrt(d1(sel).^2 + d2(sel).^2);
+                    ns = length(s);
+                    
+                    % Initialize iterative process to find required significancy_percentage
+                    t = 0;
+                    t_significant = 0;
+                    percentage_below_threshold = nnz(s <= T(elev,t))/ns;
+                    
+                    % Determine the way to optimize (increase/decrease t in iterations)
+                    dt = 0.005;
+                    if significancy_percentage > percentage_below_threshold
+                    else
+                        dt = -dt;
+                    end
+                    
+                    % Iterative search
+                    while true
+                        t = t + dt;
+                        percentage_below_threshold = nnz(s <= T(elev,t))/ns;
+                        
+                        % Breaking condition in both cases of iteration process
+                        if dt > 0
+                            if percentage_below_threshold >= significancy_percentage
+                                t_significant = t;
+                                break;
+                            end
+                        else
+                            if (percentage_below_threshold <= significancy_percentage) && (significancy_percentage >= 0)
+                                t_significant = t;
+                                break;
+                            end
+                        end
+                    end
+                    
+                    % Development figure - showing threshold function & threshold_significancy
+                    % figure();
+                    % plot(elev,s,'k.'); hold on;
+                    % plot(0:90,S(0:90),'r-','LineWidth',2);
+                    % plot(0:90,T(0:90,t_significant),'--','LineWidth',1,'DisplayName',...
+                    %     sprintf('t=%.2f (%.0f%%)',t_significant,100*significancy_percentage));
+                    % legend('Location','NorthEast');
+                end
+            end
         end
     end
 end

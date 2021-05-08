@@ -8,6 +8,8 @@ classdef SNRMultipathDetectorOptions
             @(x,p) p(1)*x.^3 + p(2)*x.^2 + p(3)*x.^3 + p(4),...
             @(x,p) p(1)*x.^3 + p(2)*x.^2 + p(3)*x.^3 + p(4),...
             @(x,p) p(1)*x.^3 + p(2)*x.^2 + p(3)*x.^3 + p(4)}
+        threshold_func (1,1) function_handle = @(x,t) t*exp((90-x)./90)
+        threshold_significancy (1,1) double = 0.99
         snrDifferenceSmoothing (1,3) double {mustBePositive, mustBeInteger} = [1,1,1]
         elevBinsMinimal (1,3) double {mustBePositive, mustBeInteger} = [10,10,20]
         coeffEnoughFitData (1,1) double {mustBePositive, mustBeInteger} = 1
@@ -21,6 +23,16 @@ classdef SNRMultipathDetectorOptions
                 assert(startsWith(func2str(funcs{i}),'@(x,p)'),'Incorrect function handle definition, has to match pattern: "@(x,p)"!');
             end
             obj.funcs = funcs;
+        end
+        function obj = set.threshold_func(obj,func)
+            validateattributes(func,{'function_handle'},{'size',[1,1]},2);
+            assert(startsWith(func2str(func),'@(x,t)'),'Incorrect function handle definition, has to match pattern "@(x,t)"!');
+            obj.threshold_func = func;
+        end
+        function obj = set.threshold_significancy(obj,value)
+            validateattributes(value,{'double'},{'size',[1,1]},2);
+            mustBeInRange(value,0,1);
+            obj.threshold_significancy = value;
         end
         function obj = set.snrIdentifiers(obj,snrIdentifiers)
             assert(ismember(size(snrIdentifiers,2),[2,3]),'SNR identifiers can be (1,2) or (1,3) cell of chars!');

@@ -162,9 +162,9 @@ classdef SNRMultipathCalibration
                         pS = polyfit(elevation(selValidS),S(selValidS),opts.polyOrders(3));
                         fitS = @(x) polyval(pS,x);
                     end
-                    sigma1 = std(dSNR1(selValid1)); if sigma1 == 0, sigma1 = nan; end
-                    sigma2 = std(dSNR2(selValid2)); if sigma2 == 0, sigma2 = nan; end
-                    sigmaS = std(S(selValidS));
+                    sigma1 = sqrt(sum(dS1(selValid1).^2)/nnz(selValid1)); if sigma1 == 0, sigma1 = nan; end
+                    sigma2 = sqrt(sum(dS2(selValid2).^2)/nnz(selValid2)); if sigma2 == 0, sigma2 = nan; end
+                    sigmaS = sqrt(sum((S(selValidS) - fitS(elevation(selValidS))).^2)/nnz(selValidS));
                     elevCoverageBinS = unique(round(elevation(selValidS)))';
                     if nnz(elevCoverageBinS >= 0) < elevBinsMinimalGroup(2), return; end
                     

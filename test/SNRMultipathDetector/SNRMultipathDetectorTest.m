@@ -29,6 +29,7 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         function testSNRMultipathDetectorConstructor_2frequencies(obj)
             opts = SNRMultipathDetectorOptions();
             opts.snrIdentifiers = {'S1C','S2W'};
+            opts.threshold_significancy = 0.9;
             SNRMultipathDetector(obj.obsrnxSatpos,opts);
         end
         function testSNRMultipathDetectorConstructor_2frequencies_customFuncs(obj)
@@ -83,8 +84,12 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         end
         function testOBSRNX_detectMultipathViaSNR(obj)
             opts = SNRMultipathDetectorOptions();
+            opts.snrIdentifiers = {'S1C','S2X'};
+            %opts.fitByOptimization = true;
+            %opts.funcs{3} = @(x,p) p(1) + p(2)*exp((90-x)/(90-p(3)));
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
-            [isMultipath,isMultipathConfidence] = obj.obsrnxSatpos.detectMultipathViaSNR(snrDetector);
+            %snrDetector.plotCalibrationFit(SNRCalibrationMode.ALL);
+            %[isMultipath,isMultipathConfidence] = obj.obsrnxSatpos.detectMultipathViaSNR(snrDetector);
             
         end
     end
