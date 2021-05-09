@@ -10,6 +10,7 @@ classdef SNRMultipathDetectorOptions
             @(x,p) p(1)*x.^3 + p(2)*x.^2 + p(3)*x.^3 + p(4)}
         threshold_func (1,1) function_handle = @(x,t) t*exp((90-x)./90)
         threshold_significancy (1,1) double = 0.99
+        threshold_iteration_increment (1,1) double = 0.005
         snrDifferenceSmoothing (1,3) double {mustBePositive, mustBeInteger} = [1,1,1]
         elevBinsMinimal (1,3) double {mustBePositive, mustBeInteger} = [10,10,20]
         coeffEnoughFitData (1,1) double {mustBePositive, mustBeInteger} = 1
@@ -33,6 +34,10 @@ classdef SNRMultipathDetectorOptions
             validateattributes(value,{'double'},{'size',[1,1]},2);
             mustBeInRange(value,0,1);
             obj.threshold_significancy = value;
+        end
+        function obj = set.threshold_iteration_increment(obj,value)
+            validateattributes(value,{'double'},{'size',[1,1],'positive','nonzero'},2);
+            obj.threshold_iteration_increment = value;
         end
         function obj = set.snrIdentifiers(obj,snrIdentifiers)
             assert(ismember(size(snrIdentifiers,2),[2,3]),'SNR identifiers can be (1,2) or (1,3) cell of chars!');

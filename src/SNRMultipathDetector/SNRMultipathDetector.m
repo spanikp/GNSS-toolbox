@@ -1,8 +1,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Class SNRMultipathDetector encapsulated all data used for SNR calibration together
 % with estimated reference calibration functions for all SNR calibration scenarios.
-%
-% 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 classdef SNRMultipathDetector
     properties (SetAccess = protected)
@@ -302,11 +300,10 @@ classdef SNRMultipathDetector
                     
                     % Initialize iterative process to find required significancy_percentage
                     t = 0;
-                    t_significant = 0;
                     percentage_below_threshold = nnz(s <= T(elev,t))/ns;
                     
                     % Determine the way to optimize (increase/decrease t in iterations)
-                    dt = 0.005;
+                    dt = obj.opts.threshold_iteration_increment;
                     if significancy_percentage > percentage_below_threshold
                     else
                         dt = -dt;
@@ -332,12 +329,12 @@ classdef SNRMultipathDetector
                     end
                     
                     % Development figure - showing threshold function & threshold_significancy
-                    % figure();
-                    % plot(elev,s,'k.'); hold on;
-                    % plot(0:90,S(0:90),'r-','LineWidth',2);
-                    % plot(0:90,T(0:90,t_significant),'--','LineWidth',1,'DisplayName',...
-                    %     sprintf('t=%.2f (%.0f%%)',t_significant,100*significancy_percentage));
-                    % legend('Location','NorthEast');
+                    %f = figure();
+                    %plot(elev,s,'k.'); hold on;
+                    %plot(0:90,S(0:90),'r-','LineWidth',2);
+                    %plot(0:90,T(0:90,t_significant),'--','LineWidth',1,'DisplayName',...
+                    %    sprintf('t=%.2f (%.0f%%)',t_significant,100*significancy_percentage));
+                    %legend('Location','NorthEast');
                 end
             end
         end

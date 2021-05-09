@@ -7,10 +7,10 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         function setupTest(obj)
             addpath(genpath('../../src'))
             opt = OBSRNX.getDefaults();
-            %obj.obsrnx = OBSRNX('../data/JAB1080M.19o',opt);
-            %obj.obsrnxSatpos = obj.obsrnx.computeSatPosition('broadcast','../data/brdc');
-            obj.obsrnx = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
-            obj.obsrnxSatpos = OBSRNX.loadFromMAT('../data/JAB1080MSatpos.mat');
+            obj.obsrnx = OBSRNX('../data/JAB1080M.19o',opt);
+            obj.obsrnxSatpos = obj.obsrnx.computeSatPosition('broadcast','../data/brdc');
+            %obj.obsrnx = OBSRNX.loadFromMAT('../data/JAB1080M.mat');
+            %obj.obsrnxSatpos = OBSRNX.loadFromMAT('../data/JAB1080MSatpos.mat');
             
             % Export and load files from MAT (useful for local debug)
             %obj.obsrnx.saveToMAT('../data/JAB1080M.mat');
@@ -30,6 +30,7 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
             opts = SNRMultipathDetectorOptions();
             opts.snrIdentifiers = {'S1C','S2W'};
             opts.threshold_significancy = 0.9;
+            opts.threshold_iteration_increment = 0.1;
             SNRMultipathDetector(obj.obsrnxSatpos,opts);
         end
         function testSNRMultipathDetectorConstructor_2frequencies_customFuncs(obj)
@@ -68,6 +69,7 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
                     allCombsSNR = [snr2combs; snr3combs];
                     for j = 1:length(allCombsSNR)
                         opts = SNRMultipathDetectorOptions();
+                        opts.threshold_iteration_increment = 0.01;
                         opts.gnss = gnss;
                         opts.snrIdentifiers = allCombsSNR{j};
                         snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
