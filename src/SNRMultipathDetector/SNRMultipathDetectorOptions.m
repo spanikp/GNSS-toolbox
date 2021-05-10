@@ -8,7 +8,7 @@ classdef SNRMultipathDetectorOptions
             @(x,p) p(1)*x.^3 + p(2)*x.^2 + p(3)*x.^3 + p(4),...
             @(x,p) p(1)*x.^3 + p(2)*x.^2 + p(3)*x.^3 + p(4),...
             @(x,p) p(1)*x.^3 + p(2)*x.^2 + p(3)*x.^3 + p(4)}
-        threshold_func (1,1) function_handle = @(x,t) t*exp((90-x)./90)
+        threshold_function (1,1) function_handle = @(x,S,s0,t) S(x) + s0*t*exp((90-x)./90)
         threshold_significancy (1,1) double = 0.99
         threshold_iteration_increment (1,1) double = 0.005
         snrDifferenceSmoothing (1,3) double {mustBePositive, mustBeInteger} = [1,1,1]
@@ -25,10 +25,10 @@ classdef SNRMultipathDetectorOptions
             end
             obj.funcs = funcs;
         end
-        function obj = set.threshold_func(obj,func)
+        function obj = set.threshold_function(obj,func)
             validateattributes(func,{'function_handle'},{'size',[1,1]},2);
-            assert(startsWith(func2str(func),'@(x,t)'),'Incorrect function handle definition, has to match pattern "@(x,t)"!');
-            obj.threshold_func = func;
+            assert(startsWith(func2str(func),'@(x,S,s0,t)'),sprintf('Incorrect function handle definition, has to match pattern "@(x,S,s0,t)"!\nExample: @(x,S,s0,t) S(x) + s0*t*exp((90-x)./90)'));
+            obj.threshold_function = func;
         end
         function obj = set.threshold_significancy(obj,value)
             validateattributes(value,{'double'},{'size',[1,1]},2);

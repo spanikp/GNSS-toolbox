@@ -79,7 +79,7 @@ classdef SNRMultipathCalibration
         end
     end
     methods (Static)
-        function snrFit = getFit(dSNR1,dSNR2,elevation,satIDs,blockIDs,elevBinsMinimalGroup,opts)
+        function [snrFit,threshold_function] = getFit(dSNR1,dSNR2,elevation,satIDs,blockIDs,elevBinsMinimalGroup,opts)
             validateattributes(dSNR1,{'double'},{},1);
             validateattributes(dSNR2,{'double'},{},2);
             validateattributes(elevation,{'double'},{},3);
@@ -171,7 +171,20 @@ classdef SNRMultipathCalibration
                     % Fix fit parameters if all elements are zero
                     if all(fitC12(0:90) == 0), fitC12 = @(x) nan(size(x)); end
                     if all(fitC15(0:90) == 0), fitC15 = @(x) nan(size(x)); end
-                    snrFit = SNRFitParam(opts.gnss,satIDs,blockIDs,fitC12,fitC15,fitS,sigma1,sigma2,sigmaS,...
+                    
+                    % Estimate threshold function (later to be used for
+                    % multipath detection). Estimation of function
+                    % parameters are controlled via SNRMultipathDetectorOptions
+                    %    threshold_func  - function handle of threshold function
+                    %    threshold_significancy - percentage of S-samples
+                    %       marked as not-multipath
+                    %    threshold_iteration_increment - value used in
+                    %       iterative process (smaller value means longer
+                    %       computation, but higher accuracy in requred percentage)
+                    threshold_function = SNRMultipathCalibration.getThresholdFunctionGeneric(elevation(selValidS),S(selValidS),fitS,sigmaS,opts);
+                    
+                    % Setup all SNR fit function to single class object
+                    snrFit = SNRFitParam(opts.gnss,satIDs,blockIDs,fitC12,fitC15,fitS,threshold_function,sigma1,sigma2,sigmaS,...
                         {elevCoverageBinC12,elevCoverageBinC15,elevCoverageBinS});
                 end
 
@@ -180,6 +193,121 @@ classdef SNRMultipathCalibration
                     snrFit.plot(elevation,dSNR1,dSNR2,S);
                 end
             end
+        end
+        function threshold_function = getThresholdFunction(elev,Svalues,S,s0,opts)
+            validateattributes(elev,{'double'},{'size',[nan,1]},1);
+            validateattributes(Svalues,{'double'},{'size',[nan,1]},2);
+            validateattributes(S,{'function_handle'},{'size',[1,1]},3);
+            validateattributes(s0,{'double'},{'size',[1,1]},4);
+            validateattributes(opts,{'SNRMultipathDetectorOptions'},{'size',[1,1]},5);
+            assert(isequal(size(elev),size(Svalues)),'Elevation and S-statitistic array has to have same dimensions!');
+            assert(all(~isnan(elev)),'Elevation array cannot contain NaN values!');
+            assert(all(~isnan(Svalues)),'S-statistics array cannot contain NaN values!');
+            
+            significancy_percentage = opts.threshold_significancy;
+            T = opts.threshold_function;
+            ns = length(Svalues);
+            
+            % Initialize iterative process to find required significancy_percentage
+            t = 0;
+            percentage_below_threshold = nnz(Svalues <= T(elev,S,s0,t))/ns;
+            
+            % Determine the way to optimize (increase/decrease t in iterations)
+            dt = opts.threshold_iteration_increment;
+            if significancy_percentage > percentage_below_threshold
+            else
+                dt = -dt;
+            end
+            
+            % Iterative search
+            while true
+                t = t + dt;
+                percentage_below_threshold = nnz(Svalues <= T(elev,S,s0,t))/ns;
+                
+                % Breaking condition in both cases of iteration process
+                if dt > 0
+                    if percentage_below_threshold >= significancy_percentage
+                        t_significant = t;
+                        break;
+                    end
+                else
+                    if (percentage_below_threshold <= significancy_percentage) && (significancy_percentage >= 0)
+                        t_significant = t;
+                        break;
+                    end
+                end
+            end
+            
+            threshold_function = @(x) T(x,S,s0,t_significant);
+            
+            % Development figure - showing threshold function & threshold_significancy
+            %f = figure();
+            %plot(elev,Svalues,'k.','DisplayName','S-values'); hold on;
+            %plot(0:90,S(0:90),'r-','LineWidth',2,'DisplayName','fit S');
+            %plot(0:90,threshold_function(0:90),'--','LineWidth',1,'DisplayName',...
+            %  sprintf('threshold function: t=%.2f (%.0f%%)',t_significant,100*significancy_percentage));
+            %sel_above = Svalues >= threshold_function(elev);
+            %plot(elev(sel_above),Svalues(sel_above),'ro','DisplayName','values above threshold');
+            %legend('Location','NorthEast');
+        end
+        function threshold_function = getThresholdFunctionGeneric(elev,Svalues,S,s0,opts)
+            validateattributes(elev,{'double'},{'size',[nan,1]},1);
+            validateattributes(Svalues,{'double'},{'size',[nan,1]},2);
+            validateattributes(S,{'function_handle'},{'size',[1,1]},3);
+            validateattributes(s0,{'double'},{'size',[1,1]},4);
+            validateattributes(opts,{'SNRMultipathDetectorOptions'},{'size',[1,1]},5);
+            assert(isequal(size(elev),size(Svalues)),'Elevation and S-statitistic array has to have same dimensions!');
+            assert(all(~isnan(elev)),'Elevation array cannot contain NaN values!');
+            assert(all(~isnan(Svalues)),'S-statistics array cannot contain NaN values!');
+            
+            T = opts.threshold_function;
+            ns = length(Svalues);
+            
+            % Initialize iterative process to find significancy_levels
+            t0 = 0;
+            perc_below = @(t) nnz(Svalues <= T(elev,S,s0,t))/ns;
+            perc_below0 = perc_below(t0);
+            perc_below1 = []; t1 = []; % for positive dt
+            perc_below2 = []; t2 = []; % for negative dt
+            
+            % Determine the way to optimize (increase/decrease t in iterations)
+            dt = opts.threshold_iteration_increment;
+            t = t0;
+            while true
+                t = t + dt;
+                t1 = [t1; t];
+                perc_below1 = [perc_below1; perc_below(t)];
+                
+                if perc_below1(end) == 1, break; end
+            end
+            t = t0;
+            while true
+                t = t - dt;
+                t2 = [t; t2];
+                perc_below2 = [perc_below(t); perc_below2];
+                
+                if perc_below2(1) == 0, break; end
+            end
+            
+            % Get threshold function with required percentage below threshold
+            tt = [t2; t0; t1];
+            perc_below_tt = [perc_below2; perc_below0; perc_below1];
+            [perc_below_tt_u,iUnique_percentage] = unique(perc_below_tt);
+            tt_u = tt(iUnique_percentage);
+            icdf_percentage = @(x) interp1(perc_below_tt_u,tt_u,x,'linear');
+            threshold_function = @(x,p) T(x,S,s0,icdf_percentage(p));
+            
+            % Development figure - showing threshold function & threshold_significancy
+            %figure; plot(tt,perc_below_tt,'.-'); hold on; plot(0:dt:1,icdf_percentage(0:dt:1),'.-'); plot(tt,tt,'k--')
+            %f = figure();
+            %p = 0.1345;
+            %plot(elev,Svalues,'k.','DisplayName','S-values'); hold on;
+            %plot(0:90,S(0:90),'r-','LineWidth',2,'DisplayName','fit S');
+            %plot(0:90,threshold_function(0:90,p),'--','LineWidth',1,'DisplayName',...
+            %    sprintf('threshold function: t=%.2f for p=%.2f',icdf_percentage(p),p));
+            %sel_above = Svalues >= threshold_function(elev,p);
+            %plot(elev(sel_above),Svalues(sel_above),'ro','DisplayName','values above threshold');
+            %legend('Location','NorthEast');
         end
     end
 end

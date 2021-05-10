@@ -7,6 +7,7 @@ classdef SNRFitParam
         fitC12 (1,1) function_handle = @(x) x
         fitC15 (1,1) function_handle = @(x) x
         fitS (1,:) function_handle = @(x) x
+        T (1,:) function_handle = @(x) x
         sigmaC12 (1,1) double
         sigmaC15 (1,1) double
         sigmaS (1,1) double
@@ -24,7 +25,7 @@ classdef SNRFitParam
         elevCoverage (1,3) double
     end
     methods
-        function obj = SNRFitParam(gnss,satIDs,blockIDs,fitC12,fitC15,fitS,sigmaC12,sigmaC15,sigmaS,elevCoverageBins)
+        function obj = SNRFitParam(gnss,satIDs,blockIDs,fitC12,fitC15,fitS,T,sigmaC12,sigmaC15,sigmaS,elevCoverageBins)
             validateattributes(gnss,{'char'},{'size',[1,1]},1);
             assert(ismember(gnss,{'G','R','E','C'}),'Invalid GNSS identifier!');
             validateattributes(satIDs,{'double'},{'size',[1,nan],'positive','integer'},2);
@@ -32,10 +33,11 @@ classdef SNRFitParam
             validateattributes(fitC12,{'function_handle'},{'size',[1,1]},4);
             validateattributes(fitC15,{'function_handle'},{'size',[1,1]},5);
             validateattributes(fitS,{'function_handle'},{'size',[1,nan]},6);
-            validateattributes(sigmaC12,{'double'},{'size',[1,1],'nonnegative'},7);
-            validateattributes(sigmaC15,{'double'},{'size',[1,1],'nonnegative'},8);
-            validateattributes(sigmaS,{'double'},{'size',[1,1],'nonnegative'},9);
-            validateattributes(elevCoverageBins,{'cell'},{'size',[1,3]},10);
+            validateattributes(T,{'function_handle'},{'size',[1,nan]},7);
+            validateattributes(sigmaC12,{'double'},{'size',[1,1],'nonnegative'},8);
+            validateattributes(sigmaC15,{'double'},{'size',[1,1],'nonnegative'},9);
+            validateattributes(sigmaS,{'double'},{'size',[1,1],'nonnegative'},10);
+            validateattributes(elevCoverageBins,{'cell'},{'size',[1,3]},11);
             
             obj.gnss = gnss;
             obj.sat = satIDs;
@@ -44,6 +46,7 @@ classdef SNRFitParam
             obj.fitC12 = fitC12;
             obj.fitC15 = fitC15;
             obj.fitS = fitS;
+            obj.T = T;
             obj.sigmaC12 = sigmaC12;
             obj.sigmaC15 = sigmaC15;
             obj.sigmaS = sigmaS;
@@ -115,6 +118,7 @@ classdef SNRFitParam
                     plot(elevToPlot,obj.fitS(elevToPlot),'-','Color','r','LineWidth',3,'HandleVisibility','off');
                 end
             end
+            plot(sampleElevation,obj.T(sampleElevation),'--','Color','r','LineWidth',3,'DisplayName','threshold function');
             xlim([0,90]); ylim([-0.1,max(S)+0.1*max(S)]);
             xlabel('Elevation (deg)'); ylabel('Detection statistic S');
             satsStr = ['[',strjoin(strsplit(num2str(obj.sat),' '),','),']'];

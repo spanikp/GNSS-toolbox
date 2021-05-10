@@ -75,9 +75,6 @@ classdef SNRMultipathDetector
                     obj.snrCal.(calibrationMode.toString()) = snrCal;
                 end
             end
-            
-            % Compute threshold function(s)
-            obj = obj.getThresholdFunctions(opts.threshold_func,opts.threshold_significancy);
         end
         function plotCalibrationFit(obj,calibrationMode)
             if nargin == 1, calibrationMode = SNRCalibrationMode.ALL; end
@@ -150,8 +147,8 @@ classdef SNRMultipathDetector
                 end
                 
                 % Append string to title (has meaning for block/satellite mode)
-                if strcmp(calibrationMode,'block'), addStr = sprintf('(%s-%d)',obj.gnss,unique(snr_cal.fit(iCal).block)); end
-                if strcmp(calibrationMode,'individual'), addStr = sprintf('(%s%02d)',obj.gnss,snr_cal.fit(iCal).sat); end
+                if calibrationMode == SNRCalibrationMode.BLOCK, addStr = sprintf('(%s-%d)',obj.gnss,unique(snr_cal.fit(iCal).block)); end
+                if calibrationMode == SNRCalibrationMode.INDIVIDUAL, addStr = sprintf('(%s%02d)',obj.gnss,snr_cal.fit(iCal).sat); end
                 
                 % Add labels and titles
                 title(ax(1),sprintf('SNR differences & reference function(s)\nGNSS: %s, calibration mode: %s %s',obj.gnss,calibrationMode,addStr));
@@ -186,6 +183,11 @@ classdef SNRMultipathDetector
                     end
                 end
                 
+                % Plot threshold function
+                p = 0.99;
+                selAbove = S >= snr_cal.fit(iCal).T(elev,p);
+                plot(ax(2),elevToPlot,snr_cal.fit(iCal).T(elevToPlot,p),'r--','DisplayName',sprintf('threshold function (p=%.2f)',p));
+                plot(ax(2),elev(selAbove),S(selAbove),'ro','DisplayName','S above threshold');
                 
                 % Add labels and titles
                 title(ax(2),sprintf('Multipath detection statics S\nGNSS: %s, calibration mode: %s %s',obj.gnss,calibrationMode,addStr));
@@ -195,11 +197,12 @@ classdef SNRMultipathDetector
                 %%%%%%%%%%%%%%% End of figure S-statistics %%%%%%%%%%%%%%%%
             end
         end
-        function fitSratio = compareToCalibration(obj,satNo,satElev,satSNR,calModeToUse)
+        function isAboveThreshold = compareToThreshold(obj,satNo,satElev,satSNR,calModeToUse,p)
             validateattributes(satNo,{'double'},{'size',[1,1]},2);
             validateattributes(satElev,{'double'},{'size',[nan,1]},3);
             validateattributes(satSNR,{'double'},{},4);
             validateattributes(calModeToUse,{'SNRCalibrationMode'},{'size',[1,1]},5);
+            validateattributes(p,{'double'},{'size',[1,1]},6);
             assert(size(satSNR,2) <= 3,'Number of columns in "SNRdata" has to be 2 or 2 according SNR detector identifiers!"');
             assert(isequal(size(satElev,1),size(satSNR,1)),'Mismatch size between SNR data and provided elevations!');
             nSNRfreq = size(satSNR,2);
@@ -208,20 +211,19 @@ classdef SNRMultipathDetector
             
             % Replace 0 by nan in SNR data
             satSNR(satSNR == 0) = nan;
-            
-            % Initialize output to nana ans then ccompute SNR difference used for multipath detection
-            fitSratio = nan(size(satSNR,1),1);
             if ismember(calModeToUse,obj.usableSnrCal)
                 dSNR1 = movmean(satSNR(:,1) - satSNR(:,2),obj.opts.snrDifferenceSmoothing(1));
-                C12 = dSNR1 - fitToUse.fitC12(satElev);
+                d12 = dSNR1 - fitToUse.fitC12(satElev);
                 if nSNRfreq == 3
                     dSNR2 = movmean(satSNR(:,1) - satSNR(:,3),obj.opts.snrDifferenceSmoothing(2));
-                    C15 = dSNR2 - fitToUse.fitC15(satElev);
+                    d15 = dSNR2 - fitToUse.fitC15(satElev);
                 else
-                    C15 = zeros(size(C12));
+                    d15 = zeros(size(d12));
                 end
-                S = sqrt(C12.^2 + C15.^2);
-                fitSratio = (S - fitToUse.fitS(satElev))./fitToUse.sigmaS;
+                S = sqrt(d12.^2 + d15.^2);
+                isAboveThreshold = S >= fitToUse.T(satElev,p);
+            else
+                isAboveThreshold = false(size(satElev));
             end
         end
         
@@ -271,72 +273,6 @@ classdef SNRMultipathDetector
             validateattributes(calMode,{'SNRCalibrationMode'},{'size',[1,1]},2);
             mustBeMember(calMode,obj.usableSnrCal);
             cal = obj.snrCal.(calMode.toString());
-        end
-        function obj = getThresholdFunctions(obj,w,significancy_percentage)
-            if nargin < 3, significancy_percentage = 0.95; end
-            validateattributes(w,{'function_handle'},{'size',[1,1]},2);
-            assert(startsWith(func2str(w),'@(x,t)'),'Incorrect function handle definition, has to match pattern "@(x,t)"!');
-            
-            for calibrationMode = obj.usableSnrCal
-                fits = obj.snrCal.(calibrationMode.toString()).fit;
-                for i = 1:length(fits)
-                    f = fits(i);
-                    S = f.fitS;
-                    s0 = f.sigmaS;
-                    T = @(x,t) S(x) + w(x,t)*s0;
-                    
-                    [d1,elev] = obj.getDifferences(f.sat,1);
-                    d1 = d1 - f.fitC12(elev);
-                    if obj.nSNR == 3
-                        d2 = obj.getDifferences(f.sat,2);
-                        d2 = d2 - f.fitC15(elev);
-                    else
-                        d2 = zeros(size(d1));
-                    end
-                    sel = ~isnan(d1) & ~isnan(d2);
-                    elev = elev(sel);
-                    s = sqrt(d1(sel).^2 + d2(sel).^2);
-                    ns = length(s);
-                    
-                    % Initialize iterative process to find required significancy_percentage
-                    t = 0;
-                    percentage_below_threshold = nnz(s <= T(elev,t))/ns;
-                    
-                    % Determine the way to optimize (increase/decrease t in iterations)
-                    dt = obj.opts.threshold_iteration_increment;
-                    if significancy_percentage > percentage_below_threshold
-                    else
-                        dt = -dt;
-                    end
-                    
-                    % Iterative search
-                    while true
-                        t = t + dt;
-                        percentage_below_threshold = nnz(s <= T(elev,t))/ns;
-                        
-                        % Breaking condition in both cases of iteration process
-                        if dt > 0
-                            if percentage_below_threshold >= significancy_percentage
-                                t_significant = t;
-                                break;
-                            end
-                        else
-                            if (percentage_below_threshold <= significancy_percentage) && (significancy_percentage >= 0)
-                                t_significant = t;
-                                break;
-                            end
-                        end
-                    end
-                    
-                    % Development figure - showing threshold function & threshold_significancy
-                    %f = figure();
-                    %plot(elev,s,'k.'); hold on;
-                    %plot(0:90,S(0:90),'r-','LineWidth',2);
-                    %plot(0:90,T(0:90,t_significant),'--','LineWidth',1,'DisplayName',...
-                    %    sprintf('t=%.2f (%.0f%%)',t_significant,100*significancy_percentage));
-                    %legend('Location','NorthEast');
-                end
-            end
         end
     end
 end
