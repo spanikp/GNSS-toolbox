@@ -71,7 +71,7 @@ classdef SNRFitParam
                 value(i) = nnz(obj.(name) >= 0)/90;
             end
         end
-        function plot(obj,elevation,dSNR1,dSNR2,S)
+        function plot(obj,elevation,dSNR1,dSNR2,S,p)
             figure('Position',[220,500,1200,450]);
             subplot(1,2,1)
             cols = lines(2);
@@ -118,7 +118,7 @@ classdef SNRFitParam
                     plot(elevToPlot,obj.fitS(elevToPlot),'-','Color','r','LineWidth',3,'HandleVisibility','off');
                 end
             end
-            plot(sampleElevation,obj.T(sampleElevation),'--','Color','r','LineWidth',3,'DisplayName','threshold function');
+            plot(sampleElevation,obj.T(sampleElevation,p),'--','Color','r','LineWidth',3,'DisplayName','threshold function (p=99%)');
             xlim([0,90]); ylim([-0.1,max(S)+0.1*max(S)]);
             xlabel('Elevation (deg)'); ylabel('Detection statistic S');
             satsStr = ['[',strjoin(strsplit(num2str(obj.sat),' '),','),']'];

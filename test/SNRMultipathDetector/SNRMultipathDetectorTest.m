@@ -29,7 +29,6 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
         function testSNRMultipathDetectorConstructor_2frequencies(obj)
             opts = SNRMultipathDetectorOptions();
             opts.snrIdentifiers = {'S1C','S2W'};
-            opts.threshold_significancy = 0.9;
             opts.threshold_iteration_increment = 0.1;
             SNRMultipathDetector(obj.obsrnxSatpos,opts);
         end

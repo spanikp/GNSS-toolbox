@@ -190,7 +190,7 @@ classdef SNRMultipathCalibration
 
                 % Development figure
                 if ~isempty(snrFit) && opts.verbosity > 1
-                    snrFit.plot(elevation,dSNR1,dSNR2,S);
+                    snrFit.plot(elevation,dSNR1,dSNR2,S,0.99);
                 end
             end
         end
