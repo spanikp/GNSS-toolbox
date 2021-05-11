@@ -822,7 +822,7 @@ classdef OBSRNX
             isMultipath = false(size(obj.t,1),length(satsToDetect));
             for i = 1:length(satsToDetect)
                 satNo = satsToDetect(i);
-                %satBlockNo = obj.satblock.(gnss_)(obj.sat.(gnss_) == satNo);
+                satBlockNo = obj.satblock.(gnss_)(obj.sat.(gnss_) == satNo);
                 satSNR = obj.getObservation(gnss_,satNo,snrDetector.snrIdentifiers);
                 isValid = all(satSNR ~= 0,2);
                 [satElev,~,~] = obj.getLocal(gnss_,satNo);
@@ -831,7 +831,7 @@ classdef OBSRNX
                 % satellite, if not detection status will be NaN
                 if all(sum(satSNR) ~= 0)
                     idxInObs = satNo == obj.sat.(gnss_);
-                    isMultipath(isValid,idxInObs) = snrDetector.compareToThreshold(satNo,satElev(isValid),satSNR(isValid,:),calModeToUse,critical_percentage);
+                    isMultipath(isValid,idxInObs) = snrDetector.compareToThreshold(satNo,satBlockNo,satElev(isValid),satSNR(isValid,:),calModeToUse,critical_percentage);
                 end
             end
         end

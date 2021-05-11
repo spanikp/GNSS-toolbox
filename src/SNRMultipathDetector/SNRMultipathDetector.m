@@ -197,21 +197,39 @@ classdef SNRMultipathDetector
                 %%%%%%%%%%%%%%% End of figure S-statistics %%%%%%%%%%%%%%%%
             end
         end
-        function isAboveThreshold = compareToThreshold(obj,satNo,satElev,satSNR,calModeToUse,p)
+        function isAboveThreshold = compareToThreshold(obj,satNo,blockNo,satElev,satSNR,calModeToUse,p)
             validateattributes(satNo,{'double'},{'size',[1,1]},2);
-            validateattributes(satElev,{'double'},{'size',[nan,1]},3);
-            validateattributes(satSNR,{'double'},{},4);
-            validateattributes(calModeToUse,{'SNRCalibrationMode'},{'size',[1,1]},5);
-            validateattributes(p,{'double'},{'size',[1,1]},6);
+            validateattributes(blockNo,{'double'},{'size',[1,1]},3);
+            validateattributes(satElev,{'double'},{'size',[nan,1]},4);
+            validateattributes(satSNR,{'double'},{},5);
+            validateattributes(calModeToUse,{'SNRCalibrationMode'},{'size',[1,1]},6);
+            validateattributes(p,{'double'},{'size',[1,1]},7);
             assert(size(satSNR,2) <= 3,'Number of columns in "SNRdata" has to be 2 or 2 according SNR detector identifiers!"');
             assert(isequal(size(satElev,1),size(satSNR,1)),'Mismatch size between SNR data and provided elevations!');
             nSNRfreq = size(satSNR,2);
             snrCalToUse = obj.getCalibrationByMode(calModeToUse);
-            fitToUse = snrCalToUse.fit;
+            
+            % Initialize output
+            isAboveThreshold = false(size(satElev));
             
             % Replace 0 by nan in SNR data
             satSNR(satSNR == 0) = nan;
             if ismember(calModeToUse,obj.usableSnrCal)
+                switch calModeToUse
+                    case SNRCalibrationMode.ALL
+                        fitToUse = snrCalToUse.fit;
+                    case SNRCalibrationMode.BLOCK
+                        calBlocksAvailable = arrayfun(@(x) unique(x.block),snrCalToUse.fit);
+                        fitToUse = snrCalToUse.fit(blockNo == calBlocksAvailable);
+                        if isempty(fitToUse), return; end
+                        assert(length(fitToUse) == 1,'SNRFitParam used further should be single value, not array!');
+                    case SNRCalibrationMode.INDIVIDUAL
+                        calSatsAvailable = arrayfun(@(x) x.sat,snrCalToUse.fit);
+                        fitToUse = snrCalToUse.fit(satNo == calSatsAvailable);
+                        if isempty(fitToUse), return; end
+                        assert(length(fitToUse) == 1,'SNRFitParam used further should be single value, not array!');
+                end
+
                 dSNR1 = movmean(satSNR(:,1) - satSNR(:,2),obj.opts.snrDifferenceSmoothing(1));
                 d12 = dSNR1 - fitToUse.fitC12(satElev);
                 if nSNRfreq == 3
@@ -222,8 +240,6 @@ classdef SNRMultipathDetector
                 end
                 S = sqrt(d12.^2 + d15.^2);
                 isAboveThreshold = S >= fitToUse.T(satElev,p);
-            else
-                isAboveThreshold = false(size(satElev));
             end
         end
         

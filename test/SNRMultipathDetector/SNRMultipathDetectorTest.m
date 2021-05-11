@@ -92,8 +92,10 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
             opts.threshold_iteration_increment = 0.01;
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
             %snrDetector.plotCalibrationFit(SNRCalibrationMode.ALL);
-            isMultipath = obj.obsrnxSatpos.detectMultipathViaSNR(snrDetector,SNRCalibrationMode.ALL,0.99);
-            skyplot = obj.obsrnxSatpos.makeMultipathPlot(snrDetector.gnss,isMultipath);
+            isMultipath1 = obj.obsrnxSatpos.detectMultipathViaSNR(snrDetector,SNRCalibrationMode.ALL,0.99);
+            isMultipath2 = obj.obsrnxSatpos.detectMultipathViaSNR(snrDetector,SNRCalibrationMode.BLOCK,0.99);
+            isMultipath3 = obj.obsrnxSatpos.detectMultipathViaSNR(snrDetector,SNRCalibrationMode.INDIVIDUAL,0.99);
+            skyplot = obj.obsrnxSatpos.makeMultipathPlot(snrDetector.gnss,isMultipath2);
         end
     end
 end
