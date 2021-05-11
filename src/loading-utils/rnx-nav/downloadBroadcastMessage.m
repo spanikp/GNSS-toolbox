@@ -93,7 +93,15 @@ if extract
 	else
         fprintf('[extract]\n');
         % unix(['gzip -d -f ', filename]); % If gzip is installed
-        system(['7z e ', filenamev2]);       % If 7z is installed
+        
+        system(['7z e ', filenamev2, ' -oTmp']); % If 7z is installed
+        if exist('Tmp','dir')
+            f = dir('Tmp');
+            f = f(arrayfun(@(x) isfile(fullfile('Tmp',x.name)),f));
+            assert(length(f)==1,'At this stage there should be only one file in "Tmp" folder!');
+            movefile(fullfile('Tmp',f.name),strrep(filenamev2,'.gz',''));
+            rmdir Tmp s;
+        end
         
         % Remove original navigation message
         delete(filenamev2)

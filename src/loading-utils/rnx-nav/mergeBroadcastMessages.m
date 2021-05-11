@@ -27,6 +27,7 @@ fprintf('\n>>> Merging files >>>\n')
 % Initialize cells
 merged_raw = cell(length(fileList),1);
 listMerged = cell(length(fileList),1);
+navFileNamingMap = containers.Map({'N','G','L','C'},{'G','R','E','C'});
 
 % Looping over input file list
 for i = 1:length(fileList)
@@ -40,7 +41,7 @@ for i = 1:length(fileList)
     if i == 1
         head = hdr;
         formatVersion = hdr.version; 
-        GNSS = upper(filename(end));
+        GNSS = navFileNamingMap(upper(filename(end)));
         fprintf('Output body:   RNX v%d, "%s" navigation message\n', formatVersion, GNSS);
         fprintf('Merging file:  %s --> body\n', filename);
         merged_raw(i) = {raw(endOfHeaderIndex+1:end)};
@@ -51,7 +52,7 @@ for i = 1:length(fileList)
         % Save to common structure only if the version is the same
         if hdr.version == formatVersion
             % Chceck if files are from the same system
-            if upper(filename(end)) == GNSS
+            if navFileNamingMap(upper(filename(end))) == GNSS
                 fprintf('Merging file:  %s --> body\n', filename);
                 merged_raw(i) = {raw(endOfHeaderIndex+1:end)};
                 listMerged{i} = filename;
