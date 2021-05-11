@@ -971,7 +971,16 @@ classdef OBSRNX
                         if obj.epochFlags.OK(iEpoch)
                             idxt = idxt + 1;
                             if numel(line) > 35
-                                obj.recClockOffset(idxt) = sscanf(line(36:end),'%d');
+                                try
+                                    obj.recClockOffset(idxt) = sscanf(line(36:end),'%d');
+                                catch ME
+                                    % This overcome improper formatting of OBS RINEX files coming from UBX conversion
+                                    if strcmp(line(36:end),repmat(' ',[1,21]))
+                                        obj.recClockOffset(idxt) = 0;
+                                    else
+                                        rethrow(ME); 
+                                    end
+                                end
                             end
                         else
                             nLinesToSkip = epochRecordsNumber(iEpoch);
