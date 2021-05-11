@@ -34,10 +34,7 @@ classdef OBSRNXheader
             % Reading raw RINEX data using textscan
             fprintf('Reading header of RINEX: %s\n', absfilepath);
             finp = fopen(absfilepath,'r');
-            %fileBuffer = textscan(finp, '%s', 'Delimiter', '\n', 'whitespace', '');
-            %fileBuffer = fileBuffer{1};
-            %fclose(finp);
-            
+
             % Initialize rnx structure
             lineIndex = 0;
             sysObsTypesBuffer = {};
@@ -45,7 +42,6 @@ classdef OBSRNXheader
             firstGlonassSlotLine = true;
             while 1
                 lineIndex = lineIndex + 1;
-                %line = fileBuffer{lineIndex};
                 line = fgetl(finp);
                 
                 if lineIndex == 1

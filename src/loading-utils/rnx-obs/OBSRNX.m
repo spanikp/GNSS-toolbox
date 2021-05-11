@@ -585,6 +585,54 @@ classdef OBSRNX
             end
             obj.consistencyCheckObs();
         end
+        function obj = removeObsBelowElevationCutOff(obj,elevationCutOff,showPlotOfRemoval)
+            if nargin < 3, showPlotOfRemoval = false; end
+            validateattributes(elevationCutOff,{'double'},{'size',[1,1]},2);
+            mustBeInRange(elevationCutOff,-90,90);
+            validateattributes(showPlotOfRemoval,{'logical'},{'size',[1,1]},3);
+            
+            elevRegionAboveCutOff = [repmat(90,[1,5]),repmat(elevationCutOff,[1,5])];
+            aziRegionAboveCutOff = [0:90:360,0:90:360];
+            fprintf('Elevation cut-off removal summary:\n');
+            for i = 1:length(obj.satpos)
+                gnss_ = obj.satpos(i).gnss;
+                if showPlotOfRemoval
+                    sp = obj.makeSkyplot(gnss_,true);
+                    sp.plotRegion(elevRegionAboveCutOff,aziRegionAboveCutOff);
+                end
+                
+                allSats = obj.satpos(i).satList;
+                for j = 1:length(allSats)
+                    satNo = allSats(j);
+                    [satElev,satAzi] = obj.getLocal(gnss_,satNo);
+                    selBelowCutOff = satElev < elevationCutOff;
+                    selAboveCutOff = satElev >= elevationCutOff;
+                    
+                    selSat_obs = obj.sat.(gnss_) == satNo;
+                    selSat_satpos = obj.satpos(i).satList == satNo;
+                    obsMat = obj.obs.(gnss_){selSat_obs};
+                    previousN = max(sum(obsMat ~= 0));
+                    obsMat(selBelowCutOff,:) = 0;
+                    currentN = max(sum(obsMat ~= 0));
+                    obj.obs.(gnss_){selSat_obs} = obsMat;
+                    obj.satpos(i).satTimeFlags(selBelowCutOff,selSat_satpos) = 0;
+                    obj.satpos(i).ECEF{selSat_satpos}(selBelowCutOff,:) = 0;
+                    obj.satpos(i).local{selSat_satpos}(selBelowCutOff,:) = 0;
+                    
+                    if currentN == 0
+                        fprintf('%s%02d: all observation below cut-off elevation -> satellite removed',gnss_,satNo);
+                        obj = obj.removeSats(gnss_,satNo);
+                        obj = obj.removeSatpos(gnss_,satNo);
+                    else
+                        fprintf('%s%02d: keeping %d/%d epochs (%.2f%%)\n',gnss_,satNo,currentN,previousN,100*currentN/previousN);
+                        if showPlotOfRemoval
+                            sp.addPlot(satElev(selAboveCutOff),satAzi(selAboveCutOff),'','.','r');
+                        end
+                    end
+                end
+            end
+            obj.consistencyCheckObs();
+        end
         function obj = removeObsTypes(obj,gnss_,obsTypesToRemove)
             validateattributes(gnss_,{'char'},{'scalar'},2)
             validateattributes(obsTypesToRemove,{'cell'},{'size',[1,nan]},3)

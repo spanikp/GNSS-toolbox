@@ -1,7 +1,6 @@
 classdef OBSRNXtest < matlab.unittest.TestCase
     properties
         obsrnx
-        obsrnxSatpos
         obsrnxqi
         antex
     end
@@ -129,6 +128,13 @@ classdef OBSRNXtest < matlab.unittest.TestCase
                     end
                 end
             end
+        end
+        function testRemoveObsByElevationCutOff(obj)
+            o = obj.obsrnx.removeGNSSs('GRE');
+            o = o.computeSatPosition('broadcast','../../data/brdc');
+            o = o.harmonizeObsWithSatpos();
+            o = o.removeObsBelowElevationCutOff(30,true);
+            obj.verifyEqual(length(o.sat.C),5);
         end
         function testNoLocalCoordinationComputationTriggered(obj)
             o = obj.obsrnx;
