@@ -181,10 +181,10 @@ classdef SNRMultipathCalibration
                     %    threshold_iteration_increment - value used in
                     %       iterative process (smaller value means longer
                     %       computation, but higher accuracy in requred percentage)
-                    threshold_function = SNRMultipathCalibration.getThresholdFunctionGeneric(elevation(selValidS),S(selValidS),fitS,sigmaS,opts);
+                    [threshold_function_t,threshold_function_p] = SNRMultipathCalibration.getThresholdFunctionGeneric(elevation(selValidS),S(selValidS),fitS,sigmaS,opts);
                     
                     % Setup all SNR fit function to single class object
-                    snrFit = SNRFitParam(opts.gnss,satIDs,blockIDs,fitC12,fitC15,fitS,threshold_function,sigma1,sigma2,sigmaS,...
+                    snrFit = SNRFitParam(opts.gnss,satIDs,blockIDs,fitC12,fitC15,fitS,threshold_function_t,threshold_function_p,sigma1,sigma2,sigmaS,...
                         {elevCoverageBinC12,elevCoverageBinC15,elevCoverageBinS});
                 end
 
@@ -194,63 +194,7 @@ classdef SNRMultipathCalibration
                 end
             end
         end
-        function threshold_function = getThresholdFunction(elev,Svalues,S,s0,opts)
-            validateattributes(elev,{'double'},{'size',[nan,1]},1);
-            validateattributes(Svalues,{'double'},{'size',[nan,1]},2);
-            validateattributes(S,{'function_handle'},{'size',[1,1]},3);
-            validateattributes(s0,{'double'},{'size',[1,1]},4);
-            validateattributes(opts,{'SNRMultipathDetectorOptions'},{'size',[1,1]},5);
-            assert(isequal(size(elev),size(Svalues)),'Elevation and S-statitistic array has to have same dimensions!');
-            assert(all(~isnan(elev)),'Elevation array cannot contain NaN values!');
-            assert(all(~isnan(Svalues)),'S-statistics array cannot contain NaN values!');
-            
-            significancy_percentage = opts.threshold_significancy;
-            T = opts.threshold_function;
-            ns = length(Svalues);
-            
-            % Initialize iterative process to find required significancy_percentage
-            t = 0;
-            percentage_below_threshold = nnz(Svalues <= T(elev,S,s0,t))/ns;
-            
-            % Determine the way to optimize (increase/decrease t in iterations)
-            dt = opts.threshold_iteration_increment;
-            if significancy_percentage > percentage_below_threshold
-            else
-                dt = -dt;
-            end
-            
-            % Iterative search
-            while true
-                t = t + dt;
-                percentage_below_threshold = nnz(Svalues <= T(elev,S,s0,t))/ns;
-                
-                % Breaking condition in both cases of iteration process
-                if dt > 0
-                    if percentage_below_threshold >= significancy_percentage
-                        t_significant = t;
-                        break;
-                    end
-                else
-                    if (percentage_below_threshold <= significancy_percentage) && (significancy_percentage >= 0)
-                        t_significant = t;
-                        break;
-                    end
-                end
-            end
-            
-            threshold_function = @(x) T(x,S,s0,t_significant);
-            
-            % Development figure - showing threshold function & threshold_significancy
-            %f = figure();
-            %plot(elev,Svalues,'k.','DisplayName','S-values'); hold on;
-            %plot(0:90,S(0:90),'r-','LineWidth',2,'DisplayName','fit S');
-            %plot(0:90,threshold_function(0:90),'--','LineWidth',1,'DisplayName',...
-            %  sprintf('threshold function: t=%.2f (%.0f%%)',t_significant,100*significancy_percentage));
-            %sel_above = Svalues >= threshold_function(elev);
-            %plot(elev(sel_above),Svalues(sel_above),'ro','DisplayName','values above threshold');
-            %legend('Location','NorthEast');
-        end
-        function threshold_function = getThresholdFunctionGeneric(elev,Svalues,S,s0,opts)
+        function [threshold_function_t, threshold_function_p] = getThresholdFunctionGeneric(elev,Svalues,S,s0,opts)
             validateattributes(elev,{'double'},{'size',[nan,1]},1);
             validateattributes(Svalues,{'double'},{'size',[nan,1]},2);
             validateattributes(S,{'function_handle'},{'size',[1,1]},3);
@@ -265,7 +209,8 @@ classdef SNRMultipathCalibration
             
             % Initialize iterative process to find significancy_levels
             t0 = 0;
-            perc_below = @(t) nnz(Svalues <= T(elev,S,s0,t))/ns;
+            a = 1;
+            perc_below = @(t) nnz(Svalues <= T(elev,S,s0,a,t))/ns;
             perc_below0 = perc_below(t0);
             perc_below1 = []; t1 = []; % for positive dt
             perc_below2 = []; t2 = []; % for negative dt
@@ -295,19 +240,37 @@ classdef SNRMultipathCalibration
             [perc_below_tt_u,iUnique_percentage] = unique(perc_below_tt);
             tt_u = tt(iUnique_percentage);
             icdf_percentage = @(x) interp1(perc_below_tt_u,tt_u,x,'linear');
-            threshold_function = @(x,p) T(x,S,s0,icdf_percentage(p));
+            
+            % Get threshold function by control parameter 't' or 'p'
+            aFineTuned = icdf_percentage(0.999)/3;
+            threshold_function_t = @(x,t) T(x,S,s0,aFineTuned,t);
+            threshold_function_p = @(x,p) T(x,S,s0,a,icdf_percentage(p));
             
             % Development figure - showing threshold function & threshold_significancy
             %figure; plot(tt,perc_below_tt,'.-'); hold on; plot(0:dt:1,icdf_percentage(0:dt:1),'.-'); plot(tt,tt,'k--')
-            %f = figure();
-            %p = 0.1345;
-            %plot(elev,Svalues,'k.','DisplayName','S-values'); hold on;
-            %plot(0:90,S(0:90),'r-','LineWidth',2,'DisplayName','fit S');
-            %plot(0:90,threshold_function(0:90,p),'--','LineWidth',1,'DisplayName',...
-            %    sprintf('threshold function: t=%.2f for p=%.2f',icdf_percentage(p),p));
-            %sel_above = Svalues >= threshold_function(elev,p);
-            %plot(elev(sel_above),Svalues(sel_above),'ro','DisplayName','values above threshold');
-            %legend('Location','NorthEast');
+%             p = 0.999;
+%             f = figure();
+%             subplot(1,2,1)
+%             plot(elev,Svalues,'k.','DisplayName','S-values'); hold on;
+%             plot(0:90,S(0:90),'r-','LineWidth',2,'DisplayName','fit S');
+%             plot(0:90,threshold_function_p(0:90,p),'--','LineWidth',1,'DisplayName',...
+%             	sprintf('threshold function: a=1, t=%.2f for p=%.3f',icdf_percentage(p),p));
+%             sel_above = Svalues >= threshold_function_p(elev,p);
+%             plot(elev(sel_above),Svalues(sel_above),'ro','DisplayName','values above threshold');
+%             legend('Location','NorthEast');
+%             title('Threshold function controlled by "p"');
+%             
+%             t = 4;
+%             subplot(1,2,2)
+%             plot(elev,Svalues,'k.','DisplayName','S-values'); hold on;
+%             plot(0:90,S(0:90),'r-','LineWidth',2,'DisplayName','fit S');
+%             plot(0:90,threshold_function_t(0:90,t),'--','LineWidth',1,'DisplayName',...
+%             	sprintf('threshold function: a=%.2f, t=%.2f for p=%.3f',aFineTuned,t,p));
+%             sel_above = Svalues >= threshold_function_t(elev,t);
+%             plot(elev(sel_above),Svalues(sel_above),'ro','DisplayName','values above threshold');
+%             legend('Location','NorthEast');
+%             title('Threshold function controlled by "t"');
+%             f
         end
     end
 end

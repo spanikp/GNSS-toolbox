@@ -88,7 +88,6 @@ classdef SNRMultipathDetectorTest < matlab.unittest.TestCase
             opts.snrIdentifiers = {'S1C','S2X'};
             %opts.fitByOptimization = true;
             %opts.funcs{3} = @(x,p) p(1) + p(2)*x;
-            opts.threshold_function = @(x,S,s0,t) S(x) + s0*t*exp((90-x)./80);
             opts.threshold_iteration_increment = 0.01;
             snrDetector = SNRMultipathDetector(obj.obsrnxSatpos,opts);
             %snrDetector.plotCalibrationFit(SNRCalibrationMode.ALL);

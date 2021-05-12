@@ -120,6 +120,10 @@ classdef SATPOS
                 if any(~isnan(localRefPoint))
                     obj.localRefPoint = localRefPoint;
                 end
+                if isequal(localRefPoint,[0,0,0])
+                    error('ValidationError:ZeroReceiverPosition',...
+                        sprintf('Invalid receiver position: [0,0,0]! Local system is not defined in given point.\nRedefine obj.recpos and compute recompute satellite local coordinates with "OBSRNX.computeSatPosition" method.'));
+                end
             end
         end
         function obj = set.localRefPoint(obj,localRefPoint)

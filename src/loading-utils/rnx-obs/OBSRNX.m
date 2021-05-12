@@ -72,8 +72,10 @@ classdef OBSRNX
             hdr = OBSRNXheader(filepath);
             validateattributes(hdr,{'OBSRNXheader'},{})
             param = OBSRNX.checkParamInput(param);
+            
+            % Check other that GEODETIC marker types
             if ~strcmp(hdr.marker.type,'GEODETIC')
-                warning('Input RINEX marker type differs from "GEODETIC" or does not contain "MARKER TYPE" record. RINEX may contain kinematic records for which this reader was not programmed and can fail!');
+                warning(sprintf('Input RINEX marker type differs from "GEODETIC" or does not contain "MARKER TYPE" record.\nRINEX may contain kinematic records for which this reader was not programmed and can fail!'));
                 answer = input('Do you wish to continue? [Y/N] > ','s');
                 if ~strcmpi(answer,'y') && ~strcmpi(answer,'yes')
                     return
@@ -501,24 +503,27 @@ classdef OBSRNX
     end
     methods 
         % Plotting functions
-        function skyplot = makeSkyplot(obj,gnsses,showSatNames,backgroundFile,transparency)
+        function skyplot = makeSkyplot(obj,gnsses,showSatNames,backgroundFile,transparency,markerSymbol)
             if isempty(obj.satpos)
-                error('ValidationError:SatellitePostionsNotAvailable',...
+                error('ValidationError:SatellitePositionsNotAvailable',...
                     'First satellite position needs to be computed using "OBSRNX.computeSatPosition" method!');
             end
             
-            if nargin < 5
-               transparency = 50;
-               if nargin < 4
-                  skyplotClassFolder = fileparts(which('Skyplot'));
-                  backgroundFile = fullfile(skyplotClassFolder,'sampleSkyplot.png');
-                  if nargin < 3
-                      showSatNames = false;
-                      if nargin < 2
-                         gnsses = arrayfun(@(x) x.gnss,obj.satpos);
+            if nargin < 6
+                markerSymbol = '-';
+                if nargin < 5
+                   transparency = 50;
+                   if nargin < 4
+                      skyplotClassFolder = fileparts(which('Skyplot'));
+                      backgroundFile = fullfile(skyplotClassFolder,'sampleSkyplot.png');
+                      if nargin < 3
+                          showSatNames = false;
+                          if nargin < 2
+                             gnsses = arrayfun(@(x) x.gnss,obj.satpos);
+                          end
                       end
-                  end
-               end
+                   end
+                end
             end
             availableGnss = arrayfun(@(x) x.gnss,obj.satpos);
             assert(all(ismember(gnsses,availableGnss)),'Cannot make skyplot of GNSS system which is not available!');
@@ -535,7 +540,7 @@ classdef OBSRNX
                     isValid = elev ~= 0 & azi ~= 0;
                     elev(~isValid) = nan;
                     azi(~isValid) = nan;
-                    skyplot = skyplot.addPlot(elev,azi,satStr,'-',cols(i,:));
+                    skyplot = skyplot.addPlot(elev,azi,satStr,markerSymbol,cols(i,:));
                     if showSatNames
                        [xText,yText] = Skyplot.getCartFromPolar(skyplot.R,elev(end),azi(end));
                        text(xText,yText,satStr,'Color',cols(i,:));
@@ -585,6 +590,20 @@ classdef OBSRNX
             end
             obj.consistencyCheckObs();
         end
+        function obj = removeSatpos(obj,gnss_,satsToRemove)
+            satposIdx = find(arrayfun(@(x) strcmp(x.gnss,gnss_),obj.satpos));
+            if ~isempty(satposIdx)
+                observedSats = obj.satpos(satposIdx).satList;
+                removalSatsIdx = ismember(observedSats,satsToRemove);
+                keepSatsIdx = ~removalSatsIdx;
+                obj.satpos(satposIdx).satList = obj.satpos(satposIdx).satList(keepSatsIdx);
+                obj.satpos(satposIdx).ECEF = obj.satpos(satposIdx).ECEF(keepSatsIdx);
+                obj.satpos(satposIdx).local = obj.satpos(satposIdx).local(keepSatsIdx);
+                obj.satpos(satposIdx).satTimeFlags = obj.satpos(satposIdx).satTimeFlags(:,keepSatsIdx);
+                obj.satpos(satposIdx).SVclockCorr = obj.satpos(satposIdx).SVclockCorr(keepSatsIdx);
+            end
+            obj.consistencyCheckSatpos();
+        end
         function obj = removeObsBelowElevationCutOff(obj,elevationCutOff,showPlotOfRemoval)
             if nargin < 3, showPlotOfRemoval = false; end
             validateattributes(elevationCutOff,{'double'},{'size',[1,1]},2);
@@ -620,7 +639,7 @@ classdef OBSRNX
                     obj.satpos(i).local{selSat_satpos}(selBelowCutOff,:) = 0;
                     
                     if currentN == 0
-                        fprintf('%s%02d: all observation below cut-off elevation -> satellite removed',gnss_,satNo);
+                        fprintf('%s%02d: all observation are below cut-off elevation -> satellite removed\n',gnss_,satNo);
                         obj = obj.removeSats(gnss_,satNo);
                         obj = obj.removeSatpos(gnss_,satNo);
                     else
@@ -846,17 +865,22 @@ classdef OBSRNX
     end
     methods
         % Multipath detection methods
-        function isMultipath = detectMultipathViaSNR(obj,snrDetector,calModeToUse,critical_percentage)
-            validateattributes(snrDetector,{'SNRMultipathDetector'},{'size',[1,1]},2);
-            if nargin < 4
-                critical_percentage = 0.99;
-                if nargin < 3
-                    calModeToUse = SNRCalibrationMode.ALL;
+        function isMultipath = detectMultipathViaSNR(obj,snrDetector,calModeToUse,parameter_value,parameter_type)
+            if nargin < 5
+                parameter_type = 'p';
+                if nargin < 4
+                    parameter_value = 0.999;
+                    if nargin < 3
+                        calModeToUse = SNRCalibrationMode.ALL;
+                    end
                 end
             end
+            validateattributes(snrDetector,{'SNRMultipathDetector'},{'size',[1,1]},2);
             validateattributes(calModeToUse,{'SNRCalibrationMode'},{'size',[1,1]},3);
-            validateattributes(critical_percentage,{'double'},{'size',[1,1]},4);
-            mustBeInRange(critical_percentage,0,1);
+            validateattributes(parameter_value,{'double'},{'size',[1,1]},4);
+            validateattributes(parameter_type,{'char'},{'size',[1,1]},5);
+            mustBeMember(parameter_type,{'p','t'});
+            if strcmp(parameter_type,'p'), mustBeInRange(parameter_value,0,1); end
             assert(ismember(snrDetector.gnss,[obj.satpos.gnss]),sprintf('Input object "snrDetector" is of GNSS "%s", which is not present in OBSRNX.satpos!',snrDetector.gnss));
             
             gnss_ = snrDetector.gnss;
@@ -879,7 +903,7 @@ classdef OBSRNX
                 % satellite, if not detection status will be NaN
                 if all(sum(satSNR) ~= 0)
                     idxInObs = satNo == obj.sat.(gnss_);
-                    isMultipath(isValid,idxInObs) = snrDetector.compareToThreshold(satNo,satBlockNo,satElev(isValid),satSNR(isValid,:),calModeToUse,critical_percentage);
+                    isMultipath(isValid,idxInObs) = snrDetector.compareToThreshold(satNo,satBlockNo,satElev(isValid),satSNR(isValid,:),calModeToUse,parameter_value,parameter_type);
                 end
             end
         end
@@ -1019,15 +1043,13 @@ classdef OBSRNX
                         if obj.epochFlags.OK(iEpoch)
                             idxt = idxt + 1;
                             if numel(line) > 35
-                                try
+                                % This overcome improper formatting of OBS RINEX files coming from UBX conversion
+                                % where sample RINEX provided by Samuel contains spaces in place of clock offset values
+                                % See: https://www.mathworks.com/matlabcentral/answers/341370-how-to-read-and-plot-rinex-messages
+                                if strcmp(line(36:end),repmat(' ',[1,21]))
+                                    obj.recClockOffset(idxt) = 0;
+                                else
                                     obj.recClockOffset(idxt) = sscanf(line(36:end),'%d');
-                                catch ME
-                                    % This overcome improper formatting of OBS RINEX files coming from UBX conversion
-                                    if strcmp(line(36:end),repmat(' ',[1,21]))
-                                        obj.recClockOffset(idxt) = 0;
-                                    else
-                                        rethrow(ME); 
-                                    end
                                 end
                             end
                         else
@@ -1102,20 +1124,6 @@ classdef OBSRNX
                 obj = obj.removeSats(gnss_,prnToRemove);
             end
             obj = obj.harmonizeObsWithSatpos();
-        end
-        function obj = removeSatpos(obj,gnss_,satsToRemove)
-            satposIdx = find(arrayfun(@(x) strcmp(x.gnss,gnss_),obj.satpos));
-            if ~isempty(satposIdx)
-                observedSats = obj.satpos(satposIdx).satList;
-                removalSatsIdx = ismember(observedSats,satsToRemove);
-                keepSatsIdx = ~removalSatsIdx;
-                obj.satpos(satposIdx).satList = obj.satpos(satposIdx).satList(keepSatsIdx);
-                obj.satpos(satposIdx).ECEF = obj.satpos(satposIdx).ECEF(keepSatsIdx);
-                obj.satpos(satposIdx).local = obj.satpos(satposIdx).local(keepSatsIdx);
-                obj.satpos(satposIdx).satTimeFlags = obj.satpos(satposIdx).satTimeFlags(:,keepSatsIdx);
-                obj.satpos(satposIdx).SVclockCorr = obj.satpos(satposIdx).SVclockCorr(keepSatsIdx);
-            end
-            obj.consistencyCheckSatpos();
         end
         function n = getSatelliteCountInEpoch(obj,epochIndex,gnsses)
             if nargin < 3

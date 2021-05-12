@@ -76,10 +76,22 @@ classdef SNRMultipathDetector
                 end
             end
         end
-        function plotCalibrationFit(obj,calibrationMode)
-            if nargin == 1, calibrationMode = SNRCalibrationMode.ALL; end
+        function plotCalibrationFit(obj,calibrationMode,parameter_value,parameter_type)
+            if nargin < 4
+                parameter_type = 'p';
+                if nargin < 3
+                    parameter_value = 0.999;
+                    if nargin < 2
+                        calibrationMode = SNRCalibrationMode.ALL;
+                    end
+                end
+            end
             validateattributes(calibrationMode,{'SNRCalibrationMode'},{'size',[1,1]},2);
             assert(ismember(calibrationMode,obj.usableSnrCal),sprintf('Required calibrationMode: "%s" not available!',calibrationMode));
+            validateattributes(parameter_value,{'double'},{'size',[1,1]},3);
+            validateattributes(parameter_type,{'char'},{'size',[1,1]},4);
+            mustBeMember(parameter_type,{'p','t'});
+            if strcmp(parameter_type,'p'), mustBeInRange(parameter_value,0,1); end
             
             % Get required calibration object
             snr_cal = obj.getCalibrationByMode(calibrationMode);
@@ -184,9 +196,13 @@ classdef SNRMultipathDetector
                 end
                 
                 % Plot threshold function
-                p = 0.99;
-                selAbove = S >= snr_cal.fit(iCal).T(elev,p);
-                plot(ax(2),elevToPlot,snr_cal.fit(iCal).T(elevToPlot,p),'r--','DisplayName',sprintf('threshold function (p=%.2f)',p));
+                if strcmp(parameter_type,'p')
+                    T = snr_cal.fit(iCal).T_p;
+                else
+                    T = snr_cal.fit(iCal).T_t;
+                end
+                selAbove = S >= T(elev,parameter_value);
+                plot(ax(2),elevToPlot,T(elevToPlot,parameter_value),'r--','DisplayName',sprintf('threshold function (%s=%.3f)',parameter_type,parameter_value));
                 plot(ax(2),elev(selAbove),S(selAbove),'ro','DisplayName','S above threshold');
                 
                 % Add labels and titles
@@ -197,13 +213,17 @@ classdef SNRMultipathDetector
                 %%%%%%%%%%%%%%% End of figure S-statistics %%%%%%%%%%%%%%%%
             end
         end
-        function isAboveThreshold = compareToThreshold(obj,satNo,blockNo,satElev,satSNR,calModeToUse,p)
+        function isAboveThreshold = compareToThreshold(obj,satNo,blockNo,satElev,satSNR,calModeToUse,parameter_value,parameter_type)
             validateattributes(satNo,{'double'},{'size',[1,1]},2);
             validateattributes(blockNo,{'double'},{'size',[1,1]},3);
             validateattributes(satElev,{'double'},{'size',[nan,1]},4);
             validateattributes(satSNR,{'double'},{},5);
             validateattributes(calModeToUse,{'SNRCalibrationMode'},{'size',[1,1]},6);
-            validateattributes(p,{'double'},{'size',[1,1]},7);
+            validateattributes(parameter_value,{'double'},{'size',[1,1]},7);
+            validateattributes(parameter_type,{'char'},{'size',[1,1]},8);
+            mustBeMember(parameter_type,{'p','t'});
+            if strcmp(parameter_type,'p'), mustBeInRange(parameter_value,0,1); end
+            
             assert(size(satSNR,2) <= 3,'Number of columns in "SNRdata" has to be 2 or 2 according SNR detector identifiers!"');
             assert(isequal(size(satElev,1),size(satSNR,1)),'Mismatch size between SNR data and provided elevations!');
             nSNRfreq = size(satSNR,2);
@@ -239,7 +259,12 @@ classdef SNRMultipathDetector
                     d15 = zeros(size(d12));
                 end
                 S = sqrt(d12.^2 + d15.^2);
-                isAboveThreshold = S >= fitToUse.T(satElev,p);
+                if strcmp(parameter_type,'p')
+                    T = fitToUse.T_p;
+                else
+                    T = fitToUse.T_t;
+                end
+                isAboveThreshold = S >= T(satElev,parameter_value);
             end
         end
         
