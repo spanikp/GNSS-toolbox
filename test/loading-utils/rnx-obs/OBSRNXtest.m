@@ -226,11 +226,16 @@ classdef OBSRNXtest < matlab.unittest.TestCase
         end
         function testExportToFile(obj)
             gnsses = 'CEGR';
-            decimate = 1;
             writeReceiverOffset = true;
-            obj.obsrnx.exportToFile(fullfile(pwd(),'testOut.rnx'),gnsses,decimate,false);
-            obj.obsrnx.exportToFile(fullfile(pwd(),'testOutWithOffsets.rnx'),gnsses,decimate,writeReceiverOffset);
+            obj.obsrnx.exportToFile(fullfile(pwd(),'testOut.rnx'),gnsses,false);
+            obj.obsrnx.exportToFile(fullfile(pwd(),'testOutWithOffsets.rnx'),gnsses,writeReceiverOffset);
             obj.obsrnxqi.exportToFile(fullfile(pwd(),'testOutWithQualityIndicators.rnx'));
+        end
+        function testExportToSpreadsheet(obj)
+            obj.obsrnx.exportToSpreadsheet('export0.xlsx','G');
+            obj.obsrnx.exportToSpreadsheet('export1.xlsx','G',true);
+            obj.obsrnx.exportToSpreadsheet('export2.xlsx','G',false,[1,2]);
+            obj.obsrnx.exportToSpreadsheet('export3.xlsx','G',false,[1,2],{'C1C','S1C'});
         end
         function testMakeSkyplot(obj)
             backgroundFile = fullfile('../../other/skyplotTestBackground.png');

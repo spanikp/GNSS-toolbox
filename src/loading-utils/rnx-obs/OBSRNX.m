@@ -847,20 +847,62 @@ classdef OBSRNX
         end
         
         % Exporting function
-        function exportToFile(obj,filename,gnsses,decimateFactor,writeRecClockOffset)
-            if nargin < 5
+        function exportToFile(obj,filename,gnsses,writeRecClockOffset)
+            if nargin < 4
                 writeRecClockOffset = obj.header.receiver.clockOffsetApplied;
-                if nargin < 4
-                    decimateFactor = 1;
-                    if nargin < 3
-                        gnsses = obj.gnss;
-                    end
+                if nargin < 3
+                    gnsses = obj.gnss;
                 end
             end
             fout = fopen(filename,'w');
             obj.writeHeader(fout);
             obj.writeBody(fout,gnsses,writeRecClockOffset);
             fclose(fout);
+        end
+        function exportToSpreadsheet(obj,filename,gnss,includeGPSweekAndSecond,satelliteList,observationList)
+            if nargin < 6
+                observationList = obj.obsTypes.(gnss);
+                if nargin < 5
+                    satelliteList = obj.sat.(gnss);
+                    if nargin < 4
+                        includeGPSweekAndSecond = false; 
+                    end
+                end
+            end
+            validateattributes(filename,{'char'},{'size',[1,nan]},2);
+            validateattributes(gnss,{'char'},{'size',[1,1]},3);
+            validateattributes(includeGPSweekAndSecond,{'logical'},{'size',[1,1]},4);
+            assert(ismember(gnss,obj.gnss),sprintf('Satellite system "%s" is not available!',gnss));
+            validateattributes(satelliteList,{'double'},{'integer','positive'},5);
+            missingSatsIdx = ismember(satelliteList,obj.sat.(gnss));
+            missingSats = satelliteList(~missingSatsIdx);
+            assert(isempty(missingSats),sprintf('Satellites not available: %s',strjoin(strsplit(num2str(missingSats),' '),', ')));
+            validateattributes(observationList,{'cell'},{'size',[1,nan]},6);
+            missingObsTypesIdx = ismember(observationList,obj.obsTypes.(gnss));
+            missingObsTypes = observationList(~missingObsTypesIdx);
+            assert(isempty(missingObsTypes),sprintf('Satellites not available: %s',strjoin(missingObsTypes,', ')));
+            
+            fprintf(sprintf('Exporting satellite system: %s\n',gnss));
+            dTime = datetime(obj.t(:,1:6));
+            nSats = length(satelliteList);
+            for i = 1:nSats
+                satNo = satelliteList(i);
+                fprintf(sprintf('  -> exporting %s%02d (%2d/%2d)',gnss,satNo,i,nSats));
+                OBS = obj.getObservation(gnss,satNo,observationList);
+                OBS(OBS == 0) = nan;
+                if includeGPSweekAndSecond
+                    OBS = [obj.t(:,[7,8]),OBS];
+                    observationListNames = [{'GPSweek','GPSsecond'},observationList];
+                else
+                    observationListNames = observationList;
+                end
+                T = array2table(OBS,'VariableNames',observationListNames);
+                T.GPStime = dTime;
+                TT = table2timetable(T,'RowTimes','GPStime');
+                writetimetable(TT,filename,'FileType','spreadsheet','WriteMode','overwritesheet','Sheet',sprintf('G%02d',satNo));
+                fprintf(' [done]\n');
+            end
+            fprintf(sprintf('Totally %d satellites of %s system exported to file: %s\n',nSats,gnss,filename));
         end
     end
     methods
