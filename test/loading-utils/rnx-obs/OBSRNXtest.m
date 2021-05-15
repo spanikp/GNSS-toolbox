@@ -41,7 +41,7 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.obsrnx = OBSRNX('../../data/JAB1080M.19o');
             obj.antex = ANTEX('../../data/JABO_TRM55971.00_NONE_1440932194.atx');
             
-            param = OBSRNX.getDefaults();
+            param = OBSRNXOptions();
             param.parseQualityIndicator = true;
             obj.obsrnxqi = OBSRNX('../../data/JAB1080M.19o',param);
         end

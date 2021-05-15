@@ -6,7 +6,7 @@ addpath(genpath('../src'))
 
 jab1file = '../test/data/JAB1080M.19o';
 
-param = OBSRNX.getDefaults();
+param = OBSRNXOptions();
 param.filtergnss = 'GREC';
 
 % First time run (load from RINEX)

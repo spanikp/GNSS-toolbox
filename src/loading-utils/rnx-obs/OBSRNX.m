@@ -65,14 +65,16 @@ classdef OBSRNX
     end
     methods
         function obj = OBSRNX(filepath,param)
-            if nargin == 1
-                param = OBSRNX.getDefaults();
-            end
-            tic
-            hdr = OBSRNXheader(filepath);
-            validateattributes(hdr,{'OBSRNXheader'},{})
-            param = OBSRNX.checkParamInput(param);
+            if nargin == 1, param = OBSRNX.getDefaults(); end
+            validateattributes(filepath,{'char'},{'size',[1,nan]},1);
+            validateattributes(param,{'OBSRNXOptions'},{'size',[1,1]},2);
+            assert(isfile(filepath),sprintf('File at given path "%s" do not exist!',filepath));
             
+            tic % Start timer
+            
+            % Load RINEX header
+            hdr = OBSRNXheader(filepath);
+           
             % Check other that GEODETIC marker types
             if ~strcmp(hdr.marker.type,'GEODETIC')
                 warning(sprintf('Input RINEX marker type differs from "GEODETIC" or does not contain "MARKER TYPE" record.\nRINEX may contain kinematic records for which this reader was not programmed and can fail!'));
@@ -100,7 +102,7 @@ classdef OBSRNX
             % Consistency checks
             obj.consistencyCheckObs();
             
-            tReading = toc;
+            tReading = toc; % End timer
             fprintf('Elapsed time reading RINEX file "%s": %.4f seconds.\n',obj.filename,tReading);
         end
         function obj = computeSatPosition(obj,ephType,ephFolder)
@@ -1435,34 +1437,32 @@ classdef OBSRNX
             obj.consistencyCheckSatpos();
         end
         function param = getDefaults()
-			param.filtergnss = 'GREC';
-            param.samplingDecimation = 1;
-            param.parseQualityIndicator = false;
+			param = OBSRNXOptions();
         end
-        function param = checkParamInput(param)
-            validateattributes(param,{'struct'},{'size',[1,1]},1);
-            validateFieldnames(param,{'filtergnss'});
-            validateFieldnames(param,{'samplingDecimation'});
-            validateFieldnames(param,{'parseQualityIndicator'});
-            
-            % Handle filtergnss
-            s = unique(param.filtergnss);
-            param.filtergnss = s;
-            for i = 1:numel(s)
-                if ~ismember(s(i),'GREC')
-                    error('Not implemented system "%s", only "GREC" are supported!',s(i));
-                end
-            end
-            
-            % Handle samplingInterval
-            if isnumeric(param.samplingDecimation)
-                if param.samplingDecimation < 0 || mod(param.samplingDecimation,1) ~= 0
-                    error('Input parameter "samplingDecimation" has to be positive integer value!')
-                end
-            else
-                error('Input parameter "samplingDecimation" has to be of numeric type!')
-            end
-        end
+%         function param = checkParamInput(param)
+%             validateattributes(param,{'struct'},{'size',[1,1]},1);
+%             validateFieldnames(param,{'filtergnss'});
+%             validateFieldnames(param,{'samplingDecimation'});
+%             validateFieldnames(param,{'parseQualityIndicator'});
+%             
+%             % Handle filtergnss
+%             s = unique(param.filtergnss);
+%             param.filtergnss = s;
+%             for i = 1:numel(s)
+%                 if ~ismember(s(i),'GREC')
+%                     error('Not implemented system "%s", only "GREC" are supported!',s(i));
+%                 end
+%             end
+%             
+%             % Handle samplingInterval
+%             if isnumeric(param.samplingDecimation)
+%                 if param.samplingDecimation < 0 || mod(param.samplingDecimation,1) ~= 0
+%                     error('Input parameter "samplingDecimation" has to be positive integer value!')
+%                 end
+%             else
+%                 error('Input parameter "samplingDecimation" has to be of numeric type!')
+%             end
+%         end
         function recpos = addIncrementToRecpos(oldrecpos,increment,incType)
             validateattributes(oldrecpos,{'numeric'},{'size',[1,3]},1)
             validateattributes(increment,{'numeric'},{'size',[1,3]},2)
