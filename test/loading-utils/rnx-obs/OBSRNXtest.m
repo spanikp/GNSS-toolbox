@@ -77,11 +77,6 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             obj.verifyEqual(oldRecPos(2)+dH*cosd(lat)*sind(lon),obj.obsrnx.recpos(2),'Abstol',1e-10);
             obj.verifyEqual(oldRecPos(3)+dH*sind(lat),obj.obsrnx.recpos(3),'Abstol',1e-10);
         end
-        function testMakeSkyplotAssert(obj)
-            % Method 'makeSkyplot' should raise assertion if 'satpos' element is empty
-            % (no satellite positions are available)
-            obj.verifyError(@() obj.obsrnx.makeSkyplot(),'ValidationError:SatellitePostionsNotAvailable')
-        end
         function testComputeBrdc(obj)
             obj.obsrnx = obj.obsrnx.computeSatPosition('broadcast','../../data/brdc');
             obj.verifyInstanceOf(obj.obsrnx.satpos,'SATPOS');
