@@ -126,7 +126,7 @@ classdef SatelliteInfo
                 end
                 if isempty(t2)
                     t0 = datetime('now');
-                    satInfo(i).END_TIME = datetime([t0.Year,t0.Month,t0.Day]) + day(1);
+                    satInfo(i).END_TIME = datetime([t0.Year,t0.Month,t0.Day+1]);
                 else
                     satInfo(i).END_TIME = datetime(t2');
                 end 
