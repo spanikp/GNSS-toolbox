@@ -3,7 +3,7 @@ pool:
 steps:
   - task: InstallMATLAB@0
     inputs:
-      release: R2020b
+      release: R2021a
   - task: RunMATLABCommand@0 
     inputs:
       command: "addpath(genpath('src')); cd('test'); results = runAllTests(); assertSuccess(results)"
