@@ -44,9 +44,11 @@ classdef SATPOS
         % (N is number of rows of gpstime property, units: degrees, meters)
         local (1,:) cell
     end
-    
+    properties (Access = protected)
+        opts (1,1) SATPOSOptions = SATPOSOptions()
+    end
     methods
-        function obj = SATPOS(gnss,satList,ephType,ephFolder,gpstime,localRefPoint,satTimeFlags,obsrnxLeapSeconds)
+        function obj = SATPOS(gnss,satList,ephType,ephFolder,gpstime,localRefPoint,satTimeFlags,obsrnxLeapSeconds,opts)
             if ~exist('localRefPoint','var'), localRefPoint = nan(1,3); end
             if nargin > 0
                 obj.gnss = gnss;
@@ -54,19 +56,23 @@ classdef SATPOS
                 obj.ephType = ephType;
                 obj.ephFolder = fullpath(ephFolder);
                 obj.gpstime = gpstime;
-                if nargin < 8
-                    leapSecondsStartStop = getLeapSeconds([gpstime(1,:);gpstime(end,:)]);
-                    if leapSecondsStartStop(2) ~= leapSecondsStartStop(1)
-                        error('Computation not design to make computation when number of leap second change! Code needs to be adapted!');
-                    else
-                        obsrnxLeapSeconds = leapSecondsStartStop(1);
+                if nargin < 9
+                    opts = SATPOSOptions();
+                    if nargin < 8
+                        leapSecondsStartStop = getLeapSeconds([gpstime(1,:);gpstime(end,:)]);
+                        if leapSecondsStartStop(2) ~= leapSecondsStartStop(1)
+                            error('Computation not design to make computation when number of leap second change! Code needs to be adapted!');
+                        else
+                            obsrnxLeapSeconds = leapSecondsStartStop(1);
+                        end
+                        if nargin < 7
+                            satTimeFlags = true(size(gpstime,1),numel(satList));
+                        end
                     end
                 end
-                if nargin < 7
-                    obj.satTimeFlags = true(size(gpstime,1),numel(satList));
-                else
-                    obj.satTimeFlags = satTimeFlags;
-                end
+                assert(isequal(length(satList),size(satTimeFlags,2)),'Size mismatch between "satList" and "satTimeFlags"!');
+                obj.satTimeFlags = satTimeFlags;
+                obj.opts = opts;
                     
                 timeFrame = gps2greg(gpstime([1,end],:));
                 timeFrame = timeFrame(:,1:3);
@@ -75,11 +81,11 @@ classdef SATPOS
                 switch ephType
                     case 'broadcast'
                         brdc = loadRINEXNavigation(obj.gnss,obj.ephFolder,obj.ephList);
-                        brdc = checkEphStatus(brdc);
+                        brdc = checkEphStatus(brdc,opts);
                         
                         % Check if LEAP SECOND value is provided
                         if ~exist('obsrnxLeapSeconds','var') && isempty(brdc.hdr.leapSeconds) && strcmp(brdc.gnss,'R')
-                            error('Leap seconds not provided!')
+                            error('Leap seconds not provided!');
                         end
                         
                         % Check if given sat and sat in brdc corresponds
@@ -97,7 +103,7 @@ classdef SATPOS
                         
                         % Take number of leap second from navigation RINEX header (case of RINEX v2) or use value from
                         % observation RINEX header section (LEAP SECONDS element is not mandatory in navigation RINEX v3)
-                        [obj.ECEF,~,obj.SVclockCorr] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.localRefPoint,obj.satTimeFlags,obsrnxLeapSeconds);
+                        [obj.ECEF,~,obj.SVclockCorr] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.localRefPoint,obj.satTimeFlags,obsrnxLeapSeconds,obj.opts);
 
                     case 'precise'
                         fileListToLoad = cellfun(@(x) fullfile(obj.ephFolder,x),obj.ephList,'UniformOutput',false);
@@ -116,6 +122,12 @@ classdef SATPOS
                         [obj.ECEF, ~, obj.SVclockCorr] = SATPOS.getPrecisePosition(obj.satList,obj.gpstime,eph,obj.localRefPoint,obj.satTimeFlags);
                 end
                 
+                % Remove satellites with no position computed
+                satsToRemove = obj.satList(cellfun(@(x) sum(sum(x)) == 0, obj.ECEF));
+                if ~isempty(satsToRemove)
+                    obj = obj.removeSats(satsToRemove);
+                end
+
                 % Trigger computation of local coordinates by assignment of localRefPoint property
                 if any(~isnan(localRefPoint))
                     obj.localRefPoint = localRefPoint;
@@ -211,30 +223,49 @@ classdef SATPOS
                     end
                 end
             end
-        end 
+        end
+        function obj = removeSats(obj,satNo)
+            validateattributes(satNo,{'double'},{'integer','positive','size',[1,nan]},2);
+            if length(satNo) == 1
+                assert(ismember(satNo,obj.satList),sprintf('Cannot remove sat: %s%02d, it is not present in SATPOS object!',obj.gnss,satNo));
+                selSatToRemove = obj.satList == satNo;
+                obj.satList(:,selSatToRemove) = [];
+                obj.ECEF(:,selSatToRemove) = [];
+                obj.satTimeFlags(:,selSatToRemove) = [];
+                obj.SVclockCorr(selSatToRemove) = [];
+            else
+                for i = 1:length(satNo)
+                    obj = obj.removeSats(satNo(i));
+                end
+            end
+        end
     end
     methods (Static)
-        function [ECEF, local, SVclockCorr] = getBroadcastPosition(satList,gpstime,brdc,localRefPoint,satTimeFlags,leapSeconds)
+        function [ECEF, local, SVclockCorr] = getBroadcastPosition(satList,gpstime,brdc,localRefPoint,satTimeFlags,leapSeconds,opts)
+            if nargin < 7
+                opts = SATPOSOptions();
+                if nargin < 6
+                    leapSecondsStartStop = getLeapSeconds(gpstime);
+                    if leapSecondsStartStop(2) ~= leapSecondsStartStop(1)
+                        error('Computation not design to make computation when number of leap second change! Code needs to be adapted!');
+                    end
+                    leapSeconds = leapSecondsStartStop(1);
+                    
+                    if nargin < 5
+                       satTimeFlags = true(size(gpstime,1),numel(satList));
+                       if nargin < 4
+                          localRefPoint = [0,0,0];
+                       end
+                    end
+                end
+            end
             validateattributes(satList,{'double'},{'nonnegative'},1)
             validateattributes(gpstime,{'double'},{'size',[NaN,2]},2)
             validateattributes(brdc,{'struct'},{},3)
-            if nargin < 6
-                leapSecondsStartStop = getLeapSeconds(gpstime);
-                if leapSecondsStartStop(2) ~= leapSecondsStartStop(1)
-                    error('Computation not design to make computation when number of leap second change! Code needs to be adapted!');
-                else
-                    leapSeconds = leapSecondsStartStop(1);
-                end
-                if nargin < 5
-                   satTimeFlags = true(size(gpstime,1),numel(satList));
-                   if nargin < 4
-                      localRefPoint = [0,0,0];
-                   end
-                end
-            end
             validateattributes(localRefPoint,{'double'},{'size',[1,3]},4)
             validateattributes(satTimeFlags,{'logical'},{'size',[size(gpstime,1),numel(satList)]},5)
             validateattributes(leapSeconds,{'double'},{'scalar'},6);
+            validateattributes(opts,{'SATPOSOptions'},{'size',[1,1]},7);
                 
             satsys =  brdc.gnss;
             fprintf('\n############################################################\n')
@@ -299,8 +330,14 @@ classdef SATPOS
                     BDSTimeWanted = GPS2UTCtime(GPSTimeWanted,14);
                 end
                 
+                % Check options if critical ephemeris age should be taken into account
+                if opts.assumeEphemerisAge
+                    ageCritical = opts.criticalEphemerisAge(satsys);
+                else
+                    ageCritical = Inf;
+                end
+                
                 % Find previous epochs and throw error if there are NaN values
-                ageCritical = getEphCriticalAge(satsys);
                 [ephAge, idxEpoch] = getEphReferenceEpoch(satsys,mTimeWanted,mTimeGiven,ageCritical);
                 if all(isnan(idxEpoch))
                     fprintf('(skipped - missing previous ephemeris)\n');
@@ -331,8 +368,7 @@ classdef SATPOS
                         case 'R'
                             GLOtime = GLOTimeWanted(selTime,:);
                             ecef = getSatPosGLO(GLOtime,eph)';
-                            % Relativistic correction for GLONASS is
-                            % included in polynomial coefficients
+                            % Relativistic correction for GLONASS is included in polynomial coefficients
                             clockPolyCorr = getSVClockCorrection(GLOtime,eph(7:8)',[eph(12:13);0]');
                             clockRelativisticCorr = zeros(size(GLOtime,1),1);
                         case 'E'
@@ -371,13 +407,6 @@ classdef SATPOS
                 end
             end
             
-%             % Clear ECEF, local cells -> remove satellites without computed position
-%             selNotComputedPositions = cellfun(@(x) sum(sum(x)) == 0, ECEF);
-%             obsrnx.satpos.(satsys)(selNotComputedPositions) = [];
-%             obsrnx.sat.(satsys)(selNotComputedPositions) = [];
-%             obsrnx.obs.(satsys)(selNotComputedPositions) = [];
-%             obsrnx.obsqi.(satsys)(selNotComputedPositions) = [];
-
         end
         function [ECEF, local, SVclockCorr] = getPrecisePosition(satList,gpstime,eph,localRefPoint,satTimeFlags)
             validateattributes(satList,{'double'},{'nonnegative'},1)

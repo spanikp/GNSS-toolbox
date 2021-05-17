@@ -79,7 +79,7 @@ classdef SNRMultipathCalibration
         end
     end
     methods (Static)
-        function [snrFit,threshold_function] = getFit(dSNR1,dSNR2,elevation,satIDs,blockIDs,elevBinsMinimalGroup,opts)
+        function snrFit = getFit(dSNR1,dSNR2,elevation,satIDs,blockIDs,elevBinsMinimalGroup,opts)
             validateattributes(dSNR1,{'double'},{},1);
             validateattributes(dSNR2,{'double'},{},2);
             validateattributes(elevation,{'double'},{},3);

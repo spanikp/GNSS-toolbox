@@ -1,4 +1,4 @@
-function brdcChecked = checkEphStatus(brdc)
+function brdcChecked = checkEphStatus(brdc,opts)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to chceck uniquity of records in brdc.eph cell. There is chance
 % that some satellites have more identical records for one moment. This is
@@ -37,6 +37,10 @@ function brdcChecked = checkEphStatus(brdc)
 %
 % Peter Spanik, 10.5.2018
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if nargin == 1, opts = SATPOSOptions(); end
+validateattributes(brdc,{'struct'},{'size',[1,1]},1);
+validateFieldnames(brdc,{'hdr','sat','gnss','files','eph'});
+validateattributes(opts,{'SATPOSOptions'},{'size',[1,1]},2);
 
 % Print info
 fprintf('\n>>> Filtering loaded data >>>\n')
@@ -73,11 +77,12 @@ for i = 1:length(brdc.eph)
     
     % Health information check
     selBad = frame(healthIndex,:) ~= 0;
-    if strcmp(satsys,'E')
-        if sat == 14 || sat == 18
-            selBad = true(size(selBad));
-        end
-    else
+    if strcmp(satsys,'E') && (sat == 14 || sat == 18)
+        selBad = true(size(selBad));
+    end
+    
+    % Check if unhealthy sats should be removed (according options)
+    if opts.removeUnhealthySats
         frameCorrected = frameCorrected(:,~selBad);
     end
 

@@ -105,7 +105,7 @@ classdef OBSRNX
             tReading = toc; % End timer
             fprintf('Elapsed time reading RINEX file "%s": %.4f seconds.\n',obj.filename,tReading);
         end
-        function obj = computeSatPosition(obj,ephType,ephFolder)
+        function obj = computeSatPosition(obj,ephType,ephFolder,opts)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % 
             % Compute satellite positions for observed satellites
@@ -123,21 +123,26 @@ classdef OBSRNX
             % Input (optional):
             % ephFolder - relative or absolute path to folder with
             %     ephemeris files (default path is where the RINEX is)
+            % opts - SATPOSOptions for satellite position calculations
             %   
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             
-            validateattributes(ephType,{'char'},{},2)
+            validateattributes(ephType,{'char'},{'size',[1,nan]},2);
             mustBeMember(ephType,{'broadcast','precise'})
-            if nargin == 2
-                switch ephType
-                    case 'broadcast'
-                        f = 'brdc';
-                    case 'precise'
-                        f = 'eph';
+            if nargin < 4
+                opts = SATPOSOptions();
+                if nargin < 3
+                    switch ephType
+                        case 'broadcast'
+                            f = 'brdc';
+                        case 'precise'
+                            f = 'eph';
+                    end
+                    ephFolder = fullfile(obj.path,f);
                 end
-                ephFolder = fullfile(obj.path,f);
             end
-            validateattributes(ephFolder,{'char'},{},3)
+            validateattributes(ephFolder,{'char'},{},3);
+            validateattributes(opts,{'SATPOSOptions'},{'size',[1,1]},4);
             
             % Reset if any satpos property exist
             obj.satpos = SATPOS.empty(1,0);
@@ -148,7 +153,7 @@ classdef OBSRNX
                 localRefPoint = obj.recpos;
                 satList = obj.sat.(s);
                 satFlags = obj.satTimeFlags.(s);
-                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags,obj.header.leapSeconds);
+                obj.satpos(i) = SATPOS(s,satList,ephType,ephFolder,obj.t(:,7:8),localRefPoint,satFlags,obj.header.leapSeconds,opts);
             end
             
             % Consistency checks

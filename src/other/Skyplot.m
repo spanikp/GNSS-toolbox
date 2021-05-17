@@ -74,7 +74,7 @@ classdef Skyplot < handle
             text(2.04*obj.R,obj.R,'E','verticalalignment','middle','horizontalalignment','center','handlevisibility','off','fontsize',12,'Interpreter','Latex')
         end
         function obj = addPlot(obj,elev,azi,label,symbol,color)
-            narginchk(3,6)
+            narginchk(3,6);
             if nargin < 6
                 cols = lines(numel(obj.labels)+1);
                 color = cols(end,:);
@@ -194,14 +194,14 @@ classdef Skyplot < handle
             nLines = numel(obj.labels);
             if  nLines > 28
                 obj.lgd.NumColumns = ceil(nLines/28);
-                obj.changeFigureDimensions([600+obj.lgd.NumColumns*100,600])
+                obj.changeFigureDimensions([600+obj.lgd.NumColumns*100,600]);
                 obj.lgd.Position = [obj.lgd.Position(1)+obj.lgd.NumColumns*0.02, obj.lgd.Position(2),obj.lgd.Position(3:4)];
             end
         end
         function obj = changeFigureDimensions(obj,figSize)
-            set(obj.fig,'Units','pixels')
+            set(obj.fig,'Units','pixels');
             set(obj.fig,'Position',[[200,200],figSize]);
-            set(obj.fig,'Units','centimeters')
+            set(obj.fig,'Units','centimeters');
         end
         function obj = initializeColorbar(obj)
             if isempty(obj.cb)
