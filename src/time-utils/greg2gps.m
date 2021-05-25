@@ -15,13 +15,13 @@ function [gpsweek, tow, doy, dow] = greg2gps(time)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Compute julian date
-JD = juliandate(datetime(time(:,1),time(:,2),time(:,3)));
+JD = juliandate(datetime(time(:,1),time(:,2),time(:,3)),'juliandate');
 
 % Compute GPS time
 gpsweek = floor((JD - 2444244.5)/7);
 dow = JD - (2444244.5 + gpsweek*7);
 tow = dow*86400 + time(:,4)*3600 + time(:,5)*60 + time(:,6);
-doy = JD - juliandate(time(:,1),ones(size(time(:,1))),ones(size(time(:,1)))) + 1;
+doy = JD - juliandate(datetime(time(:,1),ones(size(time(:,1))),ones(size(time(:,1)))),'juliandate') + 1;
 
 % Output
 gpstime = [gpsweek, tow, doy, dow];

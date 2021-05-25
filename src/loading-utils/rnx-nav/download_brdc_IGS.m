@@ -17,10 +17,10 @@ function file_list = download_brdc_IGS(year_start,month_start,day_start,year_end
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-JD_start = juliandate(year_start,month_start,day_start);
-JD_end = juliandate(year_end,month_end,day_end);
+JD_start = juliandate(datetime(year_start,month_start,day_start),'juliandate');
+JD_end = juliandate(datetime(year_end,month_end,day_end),'juliandate');
 date_today = clock;
-JD_today = juliandate(date_today(1),date_today(2),date_today(3));
+JD_today = juliandate(datetime(date_today(1),date_today(2),date_today(3)),'juliandate');
 
 % Check internet connection
 [~,flag] = urlread('http://google.com');
@@ -33,9 +33,9 @@ else
           disp('You cannot download broadcast ephemeris data from the future!!!')
           break
        else
-          year = julian2greg(JD);
-          year_str = num2str(year);
-	      doy = JD - juliandate(year,1,1) + 1;
+          yr = year(datetime(JD,'ConvertFrom','juliandate'));
+          year_str = num2str(yr);
+	      doy = JD - juliandate(datetime(yr,1,1),'juliandate') + 1;
           doy_str = sprintf('%03d', doy);
        
           path = ['gps/data/daily/', year_str, '/', doy_str, '/', year_str(end-1:end), 'n'];

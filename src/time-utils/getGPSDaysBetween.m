@@ -20,10 +20,10 @@ validateattributes(timeFrame,{'numeric'},{'size',[2,3]},1);
 if nargin == 1
     extendDays = 0;
 end
-validateattributes(extendDays,{'scalar','numeric'},{'nonnegative'},2);
+validateattributes(extendDays,{'scalar','numeric'},{'nonnegative','integer'},2);
 
 % Extent input timeFrame by one day
-t = datetime(timeFrame) + extendDays*[-day(1); day(1)];
+t = datetime(timeFrame) + [-days(extendDays); days(extendDays)];
 timeFrame = datevec(t);
 timeFrame = timeFrame(:,1:6);
 

@@ -62,7 +62,7 @@ function neededFiles = downloadBroadcastData(satsys,timeFrame,folderEph)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Extent input timeFrame by one day
-t = datetime(timeFrame) + [-day(1); day(1)];
+t = datetime(timeFrame) + [-days(1); days(1)];
 timeFrame = datevec(t);
 timeFrame = timeFrame(:,1:6);
 
