@@ -96,7 +96,7 @@ classdef SATPOS
                         selSatNotPresent = ~ismember(obj.satList,brdc.sat);
                         if any(selSatNotPresent)
                             notPresentSats = obj.satList(selSatNotPresent);
-                            warning('Following sats are of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','))
+                            warning('Following sats of %s system are not present in ephemeris: %s\nThese satellites will be removed from further processing.',obj.gnss,strjoin(strsplit(num2str(notPresentSats)),','));
                             obj.satList = obj.satList(~selSatNotPresent);
                             obj.satTimeFlags = obj.satTimeFlags(:,~selSatNotPresent);
                         end
@@ -292,7 +292,11 @@ classdef SATPOS
             SVclockCorr(:) = {zeros(size(gpstime,1),1)};
             
             % Looping throught all satellites in observation file
-            fprintf(sprintf('>>> Computing satellite positions (ECEF), mode: %s >>>\n',opts.brdcEphemerisComputationDirection))
+            if strcmp(satsys,'R')
+                fprintf('>>> Computing satellite positions (ECEF), mode: automatic >>>\n');
+            else
+                fprintf(sprintf('>>> Computing satellite positions (ECEF), mode: %s >>>\n',opts.brdcEphemerisComputationDirection))
+            end
             selSatNotPresent = ~ismember(satList,brdc.sat);
             if any(selSatNotPresent)
                 notPresentSats = satList(selSatNotPresent);

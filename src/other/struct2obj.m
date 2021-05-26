@@ -38,6 +38,8 @@ for i = 1:length(inNames)
                 sprintf('Variable type error for property "%s"(''%s''): "%s" is given, but "%s" is required!',propertyName,key,givenTypeProperty,requiredTypeProperty));
             obj.(propertyName)(key) = inputStruct.(propertyName)(key);
         end
+    elseif isa(obj.(propertyName),'char')
+        obj.(propertyName) = inputStruct.(propertyName);
     else
         obj.(propertyName) = unique(inputStruct.(propertyName));
     end
