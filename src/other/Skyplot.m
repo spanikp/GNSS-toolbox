@@ -94,8 +94,10 @@ classdef Skyplot < handle
                 plot(x(end),y(end),'s','MarkerEdgeColor',color,'HandleVisibility','off');
             else
                 plot(x,y,symbol,'Color',color,'DisplayName',label);
-                plot(x(1),y(1),'*','Color',color,'HandleVisibility','off');
-                plot(x(end),y(end),'s','MarkerEdgeColor',color,'HandleVisibility','off');
+                idxFirstValid = find(~isnan(x),1,'first');
+                idxLastValid = find(~isnan(x),1,'last');
+                plot(x(idxFirstValid),y(idxFirstValid),'*','Color',color,'HandleVisibility','off');
+                plot(x(idxLastValid),y(idxLastValid),'s','MarkerEdgeColor',color,'HandleVisibility','off');
                 obj.showLegend();
                 obj.adjustLegend();
             end
@@ -134,6 +136,9 @@ classdef Skyplot < handle
                     if dAzi < -180
                         regionAzimuth(i) = regionAzimuth(i)-360;
                     end
+                    if dAzi > 180
+                        regionAzimuth(i) = regionAzimuth(i)+360;
+                    end
                     azimuthRange = linspace(regionAzimuth(i),regionAzimuth(i+1),pointsInBetween);
                 end
                 if regionElevation(i) == regionElevation(i+1)
@@ -141,7 +146,6 @@ classdef Skyplot < handle
                 else
                     elevationRange = linspace(regionElevation(i),regionElevation(i+1),pointsInBetween);
                 end
-                [xRegionPoints,yRegionPoints] = obj.polar2cart(regionElevation,regionAzimuth);
                 [x,y] = obj.polar2cart(elevationRange,azimuthRange);
                 xRegion = [xRegion, x];
                 yRegion = [yRegion, y];
@@ -231,6 +235,13 @@ classdef Skyplot < handle
             r = ((90 - elev)/90)*R;
             x = R + r.*sind(azi);
             y = R - r.*cosd(azi);
+        end
+        function [elev,azi] = getPolarFromCart(xNorm,yNorm)
+            % xNorm,yNorm are centered at zenith and range from (-1,1)
+            r = sqrt(xNorm.^2 + yNorm.^2);
+            elev = 90*(1 - r);
+            azi  = atan2d(xNorm,yNorm);
+            azi(azi < 0) = azi(azi < 0) + 360;
         end
     end
 end

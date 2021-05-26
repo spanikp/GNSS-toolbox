@@ -16,6 +16,7 @@ function [pos,aux] = getSatPosGPS(GPStime,eph)
 
 % Assigning eph values to variables
 TOE      = eph(23);
+WEEKNo   = eph(33);
 a        = eph(22);
 ecc      = eph(20);
 Delta_n  = eph(17);
@@ -34,12 +35,16 @@ CUC      = eph(19);
 
 % Loading GPS constants, set parameters of computation
 const      = getBroadcastConstants('G');
-tol_Kepler = 0.001;  % Criterion to stop Kepler equation in arcseconds
+tol_Kepler = 0.00001;  % Criterion to stop Kepler equation in arcseconds
 
-% Argument of ephemeris in seconds
-% (Be carefull, GPS week jumps are accepted!)
+% Argument of ephemeris in seconds (GPS week jumps are accepted!)
 tk = GPStime(:,2) - TOE;
-tk(tk < 0) = tk(tk < 0) + 604800;
+if nnz(GPStime(:,1) ~= WEEKNo) ~= 0
+    selWeekNo_isBefore_tk = GPStime(:,1) < WEEKNo;
+    tk(selWeekNo_isBefore_tk) = tk(selWeekNo_isBefore_tk) - 604800;
+    selWeekNo_isAfter_tk = GPStime(:,1) > WEEKNo;
+    tk(selWeekNo_isAfter_tk) = tk(selWeekNo_isAfter_tk) + 604800;
+end
 
 % Mean daily motion
 n0 = sqrt(const.GM*a^-3);

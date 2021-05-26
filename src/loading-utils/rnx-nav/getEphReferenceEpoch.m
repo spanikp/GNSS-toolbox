@@ -1,9 +1,6 @@
-function [ephAge, idxEpoch] = getEphReferenceEpoch(satsys,mTimeWanted,mTimeGiven,ageCritical)
+function [ephAge,idxEphemeris] = getEphReferenceEpoch(satsys,mTimeWanted,mTimeGiven,ageCritical,brdcEphemerisComputationDirection)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Function to find index of the closest previous epoch to Matlab times in
-% vector mTimeWanted. This is used to select correct ephemeris from set of
-% broadcast ephemeris blocks. Function print warning to console if age o
-% ephemeris is greater than 2.5  hours, but process it anyway.
+% Function to get index 
 %
 % Input:  satsys      - char defining satellite system
 %
@@ -29,45 +26,46 @@ function [ephAge, idxEpoch] = getEphReferenceEpoch(satsys,mTimeWanted,mTimeGiven
 % Peter Spanik, 24.5.2018
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%% GPS, GALILEO and BEIDOU case <- find previous closest reference epoch
-if strcmp(satsys,'G') || strcmp(satsys,'E') || strcmp(satsys,'C')
-    
-    % Initializing output index array
-    idxEpoch = nan(size(mTimeWanted));
-    ephAge   = ageCritical*ones(size(mTimeWanted));
-    
-    % Looping for all measurement moments
-    for j = 1:length(mTimeWanted)
-        deltaT = mTimeWanted(j) - mTimeGiven;
-        if all(deltaT < 0)
-            idxEpoch(j) = nan;
-        else
-            positiveDeltaT = deltaT(deltaT >= 0);
-            if min(positiveDeltaT) > ageCritical
-                idxEpoch(j) = nan;
-                ephAge(j) = min(positiveDeltaT);
-            else
-                idxEpoch(j) = find(deltaT == min(positiveDeltaT));
-                ephAge(j) = min(positiveDeltaT);
-            end
-        end
+if nargin < 5, brdcEphemerisComputationDirection = 'backward'; end
+
+validateattributes(satsys,{'char'},{'size',[1,1]},1);
+mustBeMember(satsys,{'G','R','E','C'});
+validateattributes(mTimeWanted,{'double'},{'size',[nan,1]},2);
+validateattributes(mTimeGiven,{'double'},{'size',[nan,1]},3);
+validateattributes(ageCritical,{'double'},{'size',[1,1],'nonnegative'},4);
+validateattributes(brdcEphemerisComputationDirection,{'char'},{'size',[1,nan]},5);
+mustBeMember(brdcEphemerisComputationDirection,{'backward','forward','closest'});
+
+% Initializing output index array
+idxEphemeris = nan(size(mTimeWanted));
+ephAge = nan(size(mTimeWanted));
+
+% If brdcEphemerisComputationDirection is different from both in case
+% GLONASS then this needs to be retyped to 'both', since for GLONASS this
+% is the way how satellite position should be computed according ICD.
+if strcmp(satsys,'R'), brdcEphemerisComputationDirection = 'both'; end
+
+% Looping through all required timestamps in mTimeWanted
+for j = 1:length(mTimeWanted)
+    dt = mTimeWanted(j) - mTimeGiven;
+    dt(abs(dt) < 1e-9) = 0; % Handling numeric inacuracies due to usage of datenum
+    switch brdcEphemerisComputationDirection
+        case 'backward'
+            selDirection = dt <= 0;
+        case 'forward'
+            selDirection = dt >= 0;
+        case 'closest'
+            selDirection = true(size(dt));
     end
-
-%%%%% GLONASS case <- find closest epoch (forward and backward directions)
-elseif strcmp(satsys,'R')
-
-    % Initializing output index array
-    idxEpoch = nan(size(mTimeWanted));
-    ephAge   = ageCritical*ones(size(mTimeWanted));
-
-    % Looping for all measurement moments
-    for j = 1:length(mTimeWanted)
-        deltaT = abs(mTimeWanted(j) - mTimeGiven);
-        if all(deltaT > ageCritical)
-            idxEpoch(j) = nan;
-        else
-            [ephAge(j), idxEpoch(j)] = min(deltaT);
+    dt(~selDirection) = nan;
+    selMinumum = abs(dt) == min(abs(dt));
+    idxMin = find(selDirection & selMinumum);
+    if ~isempty(idxMin)
+        if abs(dt(idxMin(1))) < ageCritical % index 1 in idxMin(1) is used in case there are more ephemeris with same reference time
+            ephAge(j) = dt(idxMin(1));
+            idxEphemeris(j) = idxMin(1);
         end
     end
 end
+
 

@@ -44,8 +44,12 @@ classdef SATPOS
         % (N is number of rows of gpstime property, units: degrees, meters)
         local (1,:) cell
     end
-    properties (Access = protected)
+    properties (SetAccess = protected)
         opts (1,1) SATPOSOptions = SATPOSOptions()
+        ephs (1,:) cell       % Size: [1,nSatellites]
+        ephsIdx (:,:) double  % Size: [nEpochs,nSatellites]
+        % Cell 'ephs' contains ephemeris blocks used for computations
+        % For each epoch there is available index which block was used
     end
     methods
         function obj = SATPOS(gnss,satList,ephType,ephFolder,gpstime,localRefPoint,satTimeFlags,obsrnxLeapSeconds,opts)
@@ -103,7 +107,7 @@ classdef SATPOS
                         
                         % Take number of leap second from navigation RINEX header (case of RINEX v2) or use value from
                         % observation RINEX header section (LEAP SECONDS element is not mandatory in navigation RINEX v3)
-                        [obj.ECEF,~,obj.SVclockCorr] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.localRefPoint,obj.satTimeFlags,obsrnxLeapSeconds,obj.opts);
+                        [obj.ECEF,~,obj.SVclockCorr,obj.ephs,obj.ephsIdx] = SATPOS.getBroadcastPosition(obj.satList,obj.gpstime,brdc,obj.localRefPoint,obj.satTimeFlags,obsrnxLeapSeconds,obj.opts);
 
                     case 'precise'
                         fileListToLoad = cellfun(@(x) fullfile(obj.ephFolder,x),obj.ephList,'UniformOutput',false);
@@ -241,7 +245,7 @@ classdef SATPOS
         end
     end
     methods (Static)
-        function [ECEF, local, SVclockCorr] = getBroadcastPosition(satList,gpstime,brdc,localRefPoint,satTimeFlags,leapSeconds,opts)
+        function [ECEF,local,SVclockCorr,ephs,ephsIdx] = getBroadcastPosition(satList,gpstime,brdc,localRefPoint,satTimeFlags,leapSeconds,opts)
             if nargin < 7
                 opts = SATPOSOptions();
                 if nargin < 6
@@ -267,7 +271,7 @@ classdef SATPOS
             validateattributes(leapSeconds,{'double'},{'scalar'},6);
             validateattributes(opts,{'SATPOSOptions'},{'size',[1,1]},7);
                 
-            satsys =  brdc.gnss;
+            satsys = brdc.gnss;
             fprintf('\n############################################################\n')
             fprintf('### Computing satellite position for %s system (BROADCAST) ##\n',satsys)
             fprintf('############################################################\n')
@@ -276,12 +280,14 @@ classdef SATPOS
             ECEF = cell(1,numel(satList));
             local = cell(1,numel(satList));
             SVclockCorr = cell(1,numel(satList));
+            ephs = cell(1,numel(satList));
+            ephsIdx = nan(size(gpstime,1),numel(satList));
             ECEF(:) = {zeros(size(gpstime,1),3)};
             local(:) = {zeros(size(gpstime,1),3)};
             SVclockCorr(:) = {zeros(size(gpstime,1),1)};
             
             % Looping throught all satellites in observation file
-            fprintf('>>> Computing satellite positions (ECEF) >>>\n')
+            fprintf(sprintf('>>> Computing satellite positions (ECEF), mode: %s >>>\n',opts.brdcEphemerisComputationDirection))
             selSatNotPresent = ~ismember(satList,brdc.sat);
             if any(selSatNotPresent)
                 notPresentSats = satList(selSatNotPresent);
@@ -338,12 +344,12 @@ classdef SATPOS
                 end
                 
                 % Find previous epochs and throw error if there are NaN values
-                [ephAge, idxEpoch] = getEphReferenceEpoch(satsys,mTimeWanted,mTimeGiven,ageCritical);
+                [ephAge,idxEpoch] = getEphReferenceEpoch(satsys,mTimeWanted,mTimeGiven,ageCritical,opts.brdcEphemerisComputationDirection);
                 if all(isnan(idxEpoch))
                     fprintf('(skipped - missing previous ephemeris)\n');
                     continue;
                 else
-                    percNotSuitableEpochs = (sum(ephAge >= ageCritical)/length(ephAge))*100;
+                    percNotSuitableEpochs = (sum(abs(ephAge) >= ageCritical)/length(ephAge))*100;
                     if percNotSuitableEpochs ~= 0
                         fprintf('(%.1f%% epochs not computed - old ephemeris age)',percNotSuitableEpochs)
                     end
@@ -352,10 +358,13 @@ classdef SATPOS
                 % Compute satellite position for group of intervals related to common ephemeris block
                 uniqueIdxEpoch = unique(idxEpoch);
                 uniqueIdxEpoch(isnan(uniqueIdxEpoch)) = [];
+                ephs{1,i} = zeros(42,length(uniqueIdxEpoch));
                 for j = 1:length(uniqueIdxEpoch)
                     selTime = uniqueIdxEpoch(j) == idxEpoch;
                     GPStime = GPSTimeWanted(selTime,:);
                     eph     = PRNephAll(:,uniqueIdxEpoch(j));
+                    ephs{1,i}(:,j) = eph;
+                    ephsIdx(selTime,i) = j;
                     
                     % Select function according to satellite system and
                     % compute sat position, clock offsets and relativity
@@ -406,7 +415,6 @@ classdef SATPOS
                     fprintf('(done)\n');
                 end
             end
-            
         end
         function [ECEF, local, SVclockCorr] = getPrecisePosition(satList,gpstime,eph,localRefPoint,satTimeFlags)
             validateattributes(satList,{'double'},{'nonnegative'},1)

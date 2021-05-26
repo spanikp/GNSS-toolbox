@@ -12,6 +12,20 @@ classdef SATPOSOptions
         % Define critical ephemeris age in days to be used when satellite
         % positions are computed from broadcast ephemeris.
         % See constructor for default values for all GNSS systems.
+        
+        brdcEphemerisComputationDirection (1,:) char {mustBeMember(brdcEphemerisComputationDirection,{'backward','forward','closest'})} = 'backward'
+        % Flag to setup selection of GPS, Galileo and Beidou broadcast ephemeris
+        % data block. Ephemeris blocks are selected as following:
+        %
+        %  'backward' - tk (time of ephemeris) will be always negative (tk < 0)
+        %             - selected ephemeris reference time is after computation time
+        %  'forward'  - tk will be always positive (tk > 0)
+        %             - selected ephemeris reference time is before computation time
+        %  'closest'  - tk can be positive or negative, depends on which ephemeris
+        %               block is closer to given computation time
+        %             - selected ephemeris reference time is closest to computation time
+        %
+        % According GPS-ICD we should always use ephemeris such that tk < 0
     end
     methods
         function obj = SATPOSOptions(obj)

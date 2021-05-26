@@ -131,6 +131,19 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             o = o.removeObsBelowElevationCutOff(30,true);
             obj.verifyEqual(length(o.sat.C),5);
         end
+        function testRemoveObsByRegion(obj)
+            o = obj.obsrnx.removeGNSSs('REC');
+            o = o.computeSatPosition('broadcast','../../data/brdc');
+            o = o.harmonizeObsWithSatpos();
+            elevRegion = [0,80,0,0];
+            aziRegion  = [0,350,90,0];
+            sp = o.makeSkyplot(o.gnss,true);
+            sp = sp.plotRegion(elevRegion,aziRegion);
+            o = o.removeSatsInRegion(elevRegion,aziRegion);
+            sp2 = o.makeSkyplot(o.gnss,true);
+            sp2 = sp2.plotRegion(elevRegion,aziRegion);
+            obj.verifyEqual(length(o.sat.G),14);
+        end
         function testNoLocalCoordinationComputationTriggered(obj)
             o = obj.obsrnx;
             hdrRecpos = o.header.approxPos;

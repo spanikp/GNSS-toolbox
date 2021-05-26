@@ -549,8 +549,9 @@ classdef OBSRNX
                     azi(~isValid) = nan;
                     skyplot = skyplot.addPlot(elev,azi,satStr,markerSymbol,cols(i,:));
                     if showSatNames
-                       [xText,yText] = Skyplot.getCartFromPolar(skyplot.R,elev(end),azi(end));
-                       text(xText,yText,satStr,'Color',cols(i,:));
+                        idxLastValid = find(~isnan(elev),1,'last');
+                        [xText,yText] = Skyplot.getCartFromPolar(skyplot.R,elev(idxLastValid),azi(idxLastValid));
+                        text(xText,yText,satStr,'Color',cols(i,:));
                     end
                 end
             end
@@ -658,6 +659,69 @@ classdef OBSRNX
                 end
             end
             obj.consistencyCheckObs();
+        end
+        function obj = keepSatsInRegion(obj,regionElevation,regionAzimuth,gnss_,selectionMode,showPlotOfRemoval)
+            if nargin < 6
+                showPlotOfRemoval = false;
+                if nargin < 5
+                    selectionMode = 'elevation/azimuth'; 
+                    if nargin < 4
+                       gnss_ = obj.gnss; 
+                    end
+                end
+            end
+            validateattributes(regionElevation,{'double'},{'size',[1,nan]},2);
+            validateattributes(regionAzimuth,{'double'},{'size',[1,nan]},3);
+            validateattributes(gnss_,{'char'},{'size',[1,nan]},4);
+            mustBeMember(gnss_,obj.gnss);
+            validateattributes(selectionMode,{'char'},{'size',[1,nan]},5);
+            mustBeMember(selectionMode,{'elevation/azimuth','projected'});
+            validateattributes(showPlotOfRemoval,{'logical'},{'size',[1,1]},6);
+            
+            if showPlotOfRemoval
+                sp = obj.makeSkyplot(gnss_);
+                sp = sp.plotRegion(regionElevation,regionAzimuth);
+            end
+            
+            for i = 1:length(gnss_)
+                g = gnss_(i);
+                [satsNo,satsIn] = obj.getSatsInRegion(g,regionElevation,regionAzimuth,selectionMode);
+                
+                satsNotInRegion = setdiff(obj.sat.(g),satsNo);
+                obj = obj.removeSats(g,satsNotInRegion);
+                obj = obj.removeSatpos(g,satsNotInRegion);
+                
+                for j = 1:length(satsNo)
+                    satNo = satsNo(j);
+                    selSat = obj.sat.(g) == satNo;
+                    selObs = ~satsIn(:,j);
+                    selMat = obj.obs.(g){selSat};
+                    selMat(selObs,:) = 0;
+                    
+                    % Remove data from observations
+                    if any(any(selMat ~= 0))
+                        obj.obs.(g)(selSat) = {selMat};
+                        obj.satTimeFlags.(g)(selObs,selSat) = false;
+                        if ~isempty(obj.obsqi)
+                             obj.obsqi.(g)(:,selObs) = ' ';
+                        end
+                    end
+                    
+                    % Remove data from satpos
+                    satPosGnss = [obj.satpos.gnss];
+                    if ismember(g,satPosGnss)
+                        if ismember(satNo,obj.satpos(satPosGnss == g).satList)
+                            if any(any(selMat ~= 0))
+                                selSatPosSat = obj.satpos(satPosGnss == g).satList == satNo;
+                                obj.satpos(satPosGnss == g).ECEF{selSatPosSat}(selObs,:) = 0;
+                                obj.satpos(satPosGnss == g).satTimeFlags(selObs,selSatPosSat) = false;
+                                obj.satpos(satPosGnss == g).SVclockCorr{selSatPosSat}(selObs) = 0;
+                                obj.satpos(satPosGnss == g).local{selSatPosSat}(selObs,:) = 0;
+                            end
+                        end
+                    end
+                end
+            end
         end
         function obj = removeObsTypes(obj,gnss_,obsTypesToRemove)
             validateattributes(gnss_,{'char'},{'scalar'},2)
@@ -771,9 +835,12 @@ classdef OBSRNX
             dt = diff(datetime(obj.t(:,9),'ConvertFrom','datenum'));
             ts = seconds(mode(dt));
         end
-        function [satsNo,satsIn] = getSatsInRegion(obj,gnss_,regionElevation,regionAzimuth)
+        function [satsNo,satsIn] = getSatsInRegion(obj,gnss_,regionElevation,regionAzimuth,selectionMode)
+            if nargin < 5, selectionMode = 'elevation/azimuth'; end
             validateattributes(regionElevation,{'double'},{'size',[1,nan]},3);
             validateattributes(regionAzimuth,{'double'},{'size',[1,nan]},4);
+            validateattributes(selectionMode,{'char'},{'size',[1,nan]},5);
+            mustBeMember(selectionMode,{'elevation/azimuth','projected'});
             assert(~isempty(obj.satpos),'Satellite position needs to be computed prior region selection!');
             assert(all(regionAzimuth>=0 & regionAzimuth<=360),'Elevation definition of region out of range!');
             assert(all(regionElevation>=0 & regionElevation<=90),'Azimuth definition of region out of range!');
@@ -786,12 +853,25 @@ classdef OBSRNX
             satsToSel = obj.satpos(satPosIdx).satList;
             satsNo = [];
             satsIn = [];
+            if strcmp(selectionMode,'projected')
+                [regionX,regionY] = Skyplot.getCartFromPolar(1,regionElevation,regionAzimuth);
+                regionX = regionX - 1;
+                regionY = regionY - 1;
+            end
+            
             for i = 1:length(satsToSel)
                 satNo = satsToSel(i);
                 [elev,azi] = obj.getLocal(gnss_,satNo);
                 elev(~obj.satpos(satPosIdx).satTimeFlags(:,i)) = nan;
                 azi(~obj.satpos(satPosIdx).satTimeFlags(:,i)) = nan;
-                in = inpolygon(elev,azi,regionElevation,regionAzimuth);
+                switch selectionMode
+                    case 'elevation/azimuth'
+                        in = inpolygon(elev,azi,regionElevation,regionAzimuth);
+                    case 'projected'
+                        [x,y] = Skyplot.getCartFromPolar(1,elev,azi);
+                        x = x - 1; y = y - 1;
+                        in = inpolygon(x,y,regionX,regionY); 
+                end
                 if nnz(in) ~= 0
                     satsNo = [satsNo,satNo];
                     satsIn = [satsIn,in];
@@ -1444,30 +1524,6 @@ classdef OBSRNX
         function param = getDefaults()
 			param = OBSRNXOptions();
         end
-%         function param = checkParamInput(param)
-%             validateattributes(param,{'struct'},{'size',[1,1]},1);
-%             validateFieldnames(param,{'filtergnss'});
-%             validateFieldnames(param,{'samplingDecimation'});
-%             validateFieldnames(param,{'parseQualityIndicator'});
-%             
-%             % Handle filtergnss
-%             s = unique(param.filtergnss);
-%             param.filtergnss = s;
-%             for i = 1:numel(s)
-%                 if ~ismember(s(i),'GREC')
-%                     error('Not implemented system "%s", only "GREC" are supported!',s(i));
-%                 end
-%             end
-%             
-%             % Handle samplingInterval
-%             if isnumeric(param.samplingDecimation)
-%                 if param.samplingDecimation < 0 || mod(param.samplingDecimation,1) ~= 0
-%                     error('Input parameter "samplingDecimation" has to be positive integer value!')
-%                 end
-%             else
-%                 error('Input parameter "samplingDecimation" has to be of numeric type!')
-%             end
-%         end
         function recpos = addIncrementToRecpos(oldrecpos,increment,incType)
             validateattributes(oldrecpos,{'numeric'},{'size',[1,3]},1)
             validateattributes(increment,{'numeric'},{'size',[1,3]},2)

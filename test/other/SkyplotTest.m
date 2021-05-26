@@ -62,5 +62,11 @@ classdef SkyplotTest < matlab.unittest.TestCase
             sp.plotRegion(regionElevation+10,regionAzimuth+70,'yellow',[0.8,1]);
             sp.plotRegion(regionElevation+15,regionAzimuth+105,[0,0.5,0],[0.5,0.8],'--');
         end
+        function testSkyplotPlotRegionThroughZeroAzimuth(obj)
+            regionElevation = [10 50 70 10];
+            regionAzimuth = [30 330 30 30];
+            sp = Skyplot();
+            sp.plotRegion(regionElevation,regionAzimuth);
+        end
     end
 end
