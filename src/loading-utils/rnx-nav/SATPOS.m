@@ -272,6 +272,11 @@ classdef SATPOS
             validateattributes(opts,{'SATPOSOptions'},{'size',[1,1]},7);
                 
             satsys = brdc.gnss;
+            if strcmp(satsys,'R')
+                nBrdcElements = 26;
+            else
+                nBrdcElements = 42;
+            end
             fprintf('\n############################################################\n')
             fprintf('### Computing satellite position for %s system (BROADCAST) ##\n',satsys)
             fprintf('############################################################\n')
@@ -358,7 +363,7 @@ classdef SATPOS
                 % Compute satellite position for group of intervals related to common ephemeris block
                 uniqueIdxEpoch = unique(idxEpoch);
                 uniqueIdxEpoch(isnan(uniqueIdxEpoch)) = [];
-                ephs{1,i} = zeros(42,length(uniqueIdxEpoch));
+                ephs{1,i} = zeros(nBrdcElements,length(uniqueIdxEpoch));
                 for j = 1:length(uniqueIdxEpoch)
                     selTime = uniqueIdxEpoch(j) == idxEpoch;
                     GPStime = GPSTimeWanted(selTime,:);
