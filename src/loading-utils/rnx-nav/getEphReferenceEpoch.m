@@ -43,7 +43,7 @@ ephAge = nan(size(mTimeWanted));
 % If brdcEphemerisComputationDirection is different from both in case
 % GLONASS then this needs to be retyped to 'both', since for GLONASS this
 % is the way how satellite position should be computed according ICD.
-if strcmp(satsys,'R'), brdcEphemerisComputationDirection = 'both'; end
+if strcmp(satsys,'R'), brdcEphemerisComputationDirection = 'closest'; end
 
 % Looping through all required timestamps in mTimeWanted
 for j = 1:length(mTimeWanted)

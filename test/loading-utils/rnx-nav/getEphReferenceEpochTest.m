@@ -20,7 +20,7 @@ classdef getEphReferenceEpochTest < matlab.unittest.TestCase
             obj.assertEqual(ephIdx,[ones(5,1);2*ones(8,1);nan(4,1)]);
         end
         function test_both(obj)
-            [ephAge,ephIdx] = getEphReferenceEpoch('G',obj.t,obj.tEph,3/24,'both');
+            [ephAge,ephIdx] = getEphReferenceEpoch('G',obj.t,obj.tEph,3/24,'closest');
             obj.assertEqual(ephAge*86400,[(-3600:900:0)';(900:900:3600)';(-2700:900:3600)'],'absTol',1e-4);
             obj.assertEqual(ephIdx,[ones(9,1);2*ones(8,1)]);
         end

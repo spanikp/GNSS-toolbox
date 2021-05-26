@@ -135,14 +135,14 @@ classdef OBSRNXtest < matlab.unittest.TestCase
             o = obj.obsrnx.removeGNSSs('REC');
             o = o.computeSatPosition('broadcast','../../data/brdc');
             o = o.harmonizeObsWithSatpos();
-            elevRegion = [0,80,0,0];
-            aziRegion  = [0,350,90,0];
+            elevRegion = [30,30,60,60,30];
+            aziRegion  = [30,90,90,30,30];
             sp = o.makeSkyplot(o.gnss,true);
             sp = sp.plotRegion(elevRegion,aziRegion);
-            o = o.removeSatsInRegion(elevRegion,aziRegion);
+            o = o.keepSatsInRegion(elevRegion,aziRegion);
             sp2 = o.makeSkyplot(o.gnss,true);
             sp2 = sp2.plotRegion(elevRegion,aziRegion);
-            obj.verifyEqual(length(o.sat.G),14);
+            obj.verifyEqual(length(o.sat.G),2);
         end
         function testNoLocalCoordinationComputationTriggered(obj)
             o = obj.obsrnx;
