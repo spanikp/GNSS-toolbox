@@ -612,6 +612,52 @@ classdef OBSRNX
             end
             obj.consistencyCheckSatpos();
         end
+        function obj = removeObservations(obj,gnss_,removeObsIdx)
+            validateattributes(gnss_,{'char'},{'size',[1,1]},2);
+            mustBeMember(gnss_,obj.gnss);
+            nSats = length(obj.sat.(gnss_));
+            validateattributes(removeObsIdx,{'logical'},{'size',[size(obj.t,1),nSats]},3);
+            
+            nObsBefore = sum(obj.satTimeFlags.(gnss_));
+            satPosGnss = [obj.satpos.gnss];
+            for i = 1:nSats
+                % Remove data from obs
+                obj.obs.(gnss_){i}(removeObsIdx(:,i),:) = 0;
+                selObs = sum(obj.obs.(gnss_){i},2) ~= 0;
+                obj.satTimeFlags.(gnss_)(:,i) = selObs;
+                if ~isempty(obj.obsqi)
+                    obj.obsqi.(gnss_)(:,~obj.satTimeFlags.(gnss_)(:,i)) = ' ';
+                end
+                
+                % Remove data from satpos
+                satNo = obj.sat.(gnss_)(i);
+                if ismember(gnss_,satPosGnss)
+                    if ismember(satNo,obj.satpos(satPosGnss == gnss_).satList)
+                        selSatPosSat = obj.satpos(satPosGnss == gnss_).satList == satNo;
+                        obj.satpos(satPosGnss == gnss_).ECEF{selSatPosSat}(~selObs,:) = 0;
+                        obj.satpos(satPosGnss == gnss_).satTimeFlags(~selObs,selSatPosSat) = false;
+                        obj.satpos(satPosGnss == gnss_).SVclockCorr{selSatPosSat}(~selObs) = 0;
+                        obj.satpos(satPosGnss == gnss_).local{selSatPosSat}(~selObs,:) = 0;
+                    end
+                end
+            end
+            nObsAfter = sum(obj.satTimeFlags.(gnss_));
+            
+            % Print removal info
+            fprintf('####################################################\n');
+            fprintf('#### Observation removal summary for "%s" system ####\n',gnss_);
+            fprintf('####################################################\n');
+            for i = 1:nSats
+                satNo = obj.sat.(gnss_)(i);
+                fprintf(' %s%02d: %d/%d (%.1f%%) removed epochs\n',gnss_,satNo,nObsBefore(i)-nObsAfter(i),...
+                    nObsBefore(i),100*(nObsBefore(i)-nObsAfter(i))/nObsBefore(i));
+            end
+            fprintf(' Sum: %d/%d (%.1f%%) removed epochs\n',sum(nObsBefore)-sum(nObsAfter),...
+                sum(nObsBefore),100*(sum(nObsBefore)-sum(nObsAfter))/sum(nObsBefore));
+            fprintf('#####################################################\n\n');
+            
+            obj.consistencyCheckObs();
+        end
         function obj = removeObsBelowElevationCutOff(obj,elevationCutOff,showPlotOfRemoval)
             if nargin < 3, showPlotOfRemoval = false; end
             validateattributes(elevationCutOff,{'double'},{'size',[1,1]},2);
@@ -683,9 +729,14 @@ classdef OBSRNX
                 sp = sp.plotRegion(regionElevation,regionAzimuth);
             end
             
+            nBeforeTotally = nan(1,length(gnss_));
+            nAfterTotally = nan(1,length(gnss_));
+            nSatellitesAffected = nan(1,length(gnss_));
             for i = 1:length(gnss_)
                 g = gnss_(i);
+                nBeforeTotally(i) = nnz(obj.satTimeFlags.(g));
                 [satsNo,satsIn] = obj.getSatsInRegion(g,regionElevation,regionAzimuth,selectionMode);
+                nSatellitesAffected(i) = length(satsNo);
                 
                 satsNotInRegion = setdiff(obj.sat.(g),satsNo);
                 obj = obj.removeSats(g,satsNotInRegion);
@@ -721,6 +772,15 @@ classdef OBSRNX
                         end
                     end
                 end
+                nAfterTotally(i) = nnz(obj.satTimeFlags.(g));
+            end
+            
+            % Print summary info
+            nDiff = nBeforeTotally - nAfterTotally;
+            fprintf('Observation removal summary:\n');
+            for i = 1:length(gnss_)
+                fprintf(' %s: %d/%d (%.1f%%) measurements removed, affected %d/%d satellites\n',gnss_(i),nDiff(i),...
+                    nBeforeTotally(i),100*nDiff(i)/nBeforeTotally(i),nSatellitesAffected(i),length(obj.sat.(gnss_(i))));
             end
         end
         function obj = removeObsTypes(obj,gnss_,obsTypesToRemove)
@@ -859,6 +919,11 @@ classdef OBSRNX
                 regionY = regionY - 1;
             end
             
+            %figure;
+            %p = patch('XData',regionAzimuth,'YData',regionElevation);
+            %p.FaceAlpha = 0.2; hold on;
+            %xlim([0,360]);ylim([0,90]);
+            
             for i = 1:length(satsToSel)
                 satNo = satsToSel(i);
                 [elev,azi] = obj.getLocal(gnss_,satNo);
@@ -872,6 +937,10 @@ classdef OBSRNX
                         x = x - 1; y = y - 1;
                         in = inpolygon(x,y,regionX,regionY); 
                 end
+                
+                %plot(azi,elev,'.');
+                %plot(azi(in),elev(in),'ro');
+                
                 if nnz(in) ~= 0
                     satsNo = [satsNo,satNo];
                     satsIn = [satsIn,in];
@@ -941,6 +1010,12 @@ classdef OBSRNX
                     gnsses = obj.gnss;
                 end
             end
+            
+            % Check if output file folder location exist
+            [outFolder,~,~] = fileparts(filename);
+            if ~exist(outFolder,'dir'), mkdir(outFolder); end
+            
+            % Write header and body to file
             fout = fopen(filename,'w');
             obj.writeHeader(fout);
             obj.writeBody(fout,gnsses,writeRecClockOffset);
@@ -1445,10 +1520,16 @@ classdef OBSRNX
         end
         function writeBody(obj,fout,gnnses,writeRecClockOffset)
             n_epochs = size(obj.t,1);
+            n_print = round(n_epochs/1000);
+            fprintf('Exporting OBSRNX object to RINEX file:       ');
             for i = 1:n_epochs
+                if rem(i,n_print) == 0
+                    fprintf('\b\b\b\b\b\b%5.1f%%',100*i/n_epochs);
+                end
                 obj.writeEpochTime(fout,i,writeRecClockOffset);
                 obj.writeEpochObservations(fout,i,gnnses);
             end
+            fprintf('\b\b\b\b\b\b(done)\n');
         end
         function writeEpochTime(obj,fout,epochIndex,writeRecClockOffset)
             tE = obj.t(epochIndex,1:6);

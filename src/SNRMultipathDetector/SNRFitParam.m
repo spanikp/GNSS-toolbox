@@ -9,6 +9,7 @@ classdef SNRFitParam
         fitS (1,:) function_handle = @(x) x
         T_t (1,:) function_handle = @(x) x
         T_p (1,:) function_handle = @(x) x
+        icdf_percentage (1,:) function_handle = @(x) x
         sigmaC12 (1,1) double
         sigmaC15 (1,1) double
         sigmaS (1,1) double
@@ -26,7 +27,7 @@ classdef SNRFitParam
         elevCoverage (1,3) double
     end
     methods
-        function obj = SNRFitParam(gnss,satIDs,blockIDs,fitC12,fitC15,fitS,T_t,T_p,sigmaC12,sigmaC15,sigmaS,elevCoverageBins)
+        function obj = SNRFitParam(gnss,satIDs,blockIDs,fitC12,fitC15,fitS,T_t,T_p,icdf_percentage,sigmaC12,sigmaC15,sigmaS,elevCoverageBins)
             validateattributes(gnss,{'char'},{'size',[1,1]},1);
             assert(ismember(gnss,{'G','R','E','C'}),'Invalid GNSS identifier!');
             validateattributes(satIDs,{'double'},{'size',[1,nan],'positive','integer'},2);
@@ -36,10 +37,11 @@ classdef SNRFitParam
             validateattributes(fitS,{'function_handle'},{'size',[1,nan]},6);
             validateattributes(T_t,{'function_handle'},{'size',[1,nan]},7);
             validateattributes(T_p,{'function_handle'},{'size',[1,nan]},8);
-            validateattributes(sigmaC12,{'double'},{'size',[1,1],'nonnegative'},9);
-            validateattributes(sigmaC15,{'double'},{'size',[1,1],'nonnegative'},10);
-            validateattributes(sigmaS,{'double'},{'size',[1,1],'nonnegative'},11);
-            validateattributes(elevCoverageBins,{'cell'},{'size',[1,3]},12);
+            validateattributes(icdf_percentage,{'function_handle'},{'size',[1,nan]},9);
+            validateattributes(sigmaC12,{'double'},{'size',[1,1],'nonnegative'},10);
+            validateattributes(sigmaC15,{'double'},{'size',[1,1],'nonnegative'},11);
+            validateattributes(sigmaS,{'double'},{'size',[1,1],'nonnegative'},12);
+            validateattributes(elevCoverageBins,{'cell'},{'size',[1,3]},13);
             
             obj.gnss = gnss;
             obj.sat = satIDs;
@@ -50,6 +52,7 @@ classdef SNRFitParam
             obj.fitS = fitS;
             obj.T_t = T_t;
             obj.T_p = T_p;
+            obj.icdf_percentage = icdf_percentage;
             obj.sigmaC12 = sigmaC12;
             obj.sigmaC15 = sigmaC15;
             obj.sigmaS = sigmaS;

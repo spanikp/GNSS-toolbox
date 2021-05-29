@@ -181,10 +181,13 @@ classdef SNRMultipathCalibration
                     %    threshold_iteration_increment - value used in
                     %       iterative process (smaller value means longer
                     %       computation, but higher accuracy in requred percentage)
-                    [threshold_function_t,threshold_function_p] = SNRMultipathCalibration.getThresholdFunctionGeneric(elevation(selValidS),S(selValidS),fitS,sigmaS,opts);
+                    %    icdf_percentage - function that links t and p values
+                    %       for each p-value it return t for beta = 1.
+                    %       Beta = icdf_percentage(0.999)/3
+                    [threshold_function_t,threshold_function_p,icdf_percentage] = SNRMultipathCalibration.getThresholdFunctionGeneric(elevation(selValidS),S(selValidS),fitS,sigmaS,opts);
                     
                     % Setup all SNR fit function to single class object
-                    snrFit = SNRFitParam(opts.gnss,satIDs,blockIDs,fitC12,fitC15,fitS,threshold_function_t,threshold_function_p,sigma1,sigma2,sigmaS,...
+                    snrFit = SNRFitParam(opts.gnss,satIDs,blockIDs,fitC12,fitC15,fitS,threshold_function_t,threshold_function_p,icdf_percentage,sigma1,sigma2,sigmaS,...
                         {elevCoverageBinC12,elevCoverageBinC15,elevCoverageBinS});
                 end
 
@@ -194,7 +197,7 @@ classdef SNRMultipathCalibration
                 end
             end
         end
-        function [threshold_function_t, threshold_function_p] = getThresholdFunctionGeneric(elev,Svalues,S,s0,opts)
+        function [threshold_function_t,threshold_function_p,icdf_percentage] = getThresholdFunctionGeneric(elev,Svalues,S,s0,opts)
             validateattributes(elev,{'double'},{'size',[nan,1]},1);
             validateattributes(Svalues,{'double'},{'size',[nan,1]},2);
             validateattributes(S,{'function_handle'},{'size',[1,1]},3);
@@ -209,8 +212,8 @@ classdef SNRMultipathCalibration
             
             % Initialize iterative process to find significancy_levels
             t0 = 0;
-            a = 1;
-            perc_below = @(t) nnz(Svalues <= T(elev,S,s0,a,t))/ns;
+            beta = 1;
+            perc_below = @(t) nnz(Svalues <= T(elev,S,s0,beta,t))/ns;
             perc_below0 = perc_below(t0);
             perc_below1 = []; t1 = []; % for positive dt
             perc_below2 = []; t2 = []; % for negative dt
@@ -224,6 +227,9 @@ classdef SNRMultipathCalibration
                 perc_below1 = [perc_below1; perc_below(t)];
                 
                 if perc_below1(end) == 1, break; end
+                if length(perc_below1) > 10000
+                    error('Required threshold function is converging very slowly. Define different function!');
+                end
             end
             t = t0;
             while true
@@ -232,6 +238,9 @@ classdef SNRMultipathCalibration
                 perc_below2 = [perc_below(t); perc_below2];
                 
                 if perc_below2(1) == 0, break; end
+                if length(perc_below2) > 10000
+                    error('Required threshold function is converging very slowly. Define different threshold function!');
+                end
             end
             
             % Get threshold function with required percentage below threshold
@@ -242,9 +251,9 @@ classdef SNRMultipathCalibration
             icdf_percentage = @(x) interp1(perc_below_tt_u,tt_u,x,'linear');
             
             % Get threshold function by control parameter 't' or 'p'
-            aFineTuned = icdf_percentage(0.999)/3;
-            threshold_function_t = @(x,t) T(x,S,s0,aFineTuned,t);
-            threshold_function_p = @(x,p) T(x,S,s0,a,icdf_percentage(p));
+            betaFineTuned = icdf_percentage(0.999)/3;
+            threshold_function_t = @(x,t) T(x,S,s0,betaFineTuned,t);
+            threshold_function_p = @(x,p) T(x,S,s0,beta,icdf_percentage(p));
             
             % Development figure - showing threshold function & threshold_significancy
             %figure; plot(tt,perc_below_tt,'.-'); hold on; plot(0:dt:1,icdf_percentage(0:dt:1),'.-'); plot(tt,tt,'k--')
