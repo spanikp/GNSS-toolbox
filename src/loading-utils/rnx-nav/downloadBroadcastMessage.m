@@ -74,9 +74,22 @@ end
 fprintf(' -> %s [downloading]', filename);
 
 % Default method using Matlab mget function
-server = ftp(servername);    % Open FTP server
-cd(server, path);            % Change directory at FTP server
-mget(server,filename);       % Download file
+try 
+    server = ftp(servername);    % Open FTP server
+    cd(server, path);            % Change directory at FTP server
+    mget(server,filename);       % Download file
+catch
+    warning('Default method FTP via mget failed!');
+end
+
+% Try another approach (download file from IGS BKG https server via websave
+try
+    fileURL = ['https://',servername,'/root_ftp/',path,filename];
+    websave(filename,fileURL);
+catch
+    warning('Download method websave from HTTP IGS BKG server failed!');
+end
+
 
 % Rename navigation message file
 gnssExtension = containers.Map({'G','R','E','C'},{'n','g','l','c'});
