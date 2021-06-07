@@ -65,8 +65,9 @@ classdef SATPOStest < matlab.unittest.TestCase
             satpos = SATPOS.fromMultiNavRINEX(f,[gpstWeek,gpstSecond],'GEC');
             
             % How to get ECEF corrdinates
-            satpos(1) % satpos is array of elements 1='G', 2='E', 3='C'
-            [x,y,z] = satpos(1).getECEF(1);
+            gnssIdx = 1; % satpos is array of elements gnssIdx: 1='G', 2='E', 3='C'
+            satNo = 1;   % Specify sat. number you want to get coordinates
+            [x,y,z] = satpos(gnssIdx).getECEF(satNo);
         end
     end
 end
