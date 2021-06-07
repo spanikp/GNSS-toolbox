@@ -59,5 +59,14 @@ classdef SATPOStest < matlab.unittest.TestCase
             obj.verifyEqual(s.satList,[1,2])
             obj.verifyEmpty(s.local)
         end
+        function testLoadMultiGNSSbroadcastFile(obj)
+            f = '../../data/multiGNSSbrdc/BRDC00GOP_R_20141740000_01D_MN.rnx'; % Multi-GNSS navigation RINEX file
+            [gpstWeek,gpstSecond] = getGPSTimeBetween([1798,86400;1798,172800],300); % Define timestamps where to compute satellite positions
+            satpos = SATPOS.fromMultiNavRINEX(f,[gpstWeek,gpstSecond],'GEC');
+            
+            % How to get ECEF corrdinates
+            satpos(1) % satpos is array of elements 1='G', 2='E', 3='C'
+            [x,y,z] = satpos(1).getECEF(1);
+        end
     end
 end

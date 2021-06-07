@@ -23,7 +23,7 @@ function [hdr, endOfHeaderIndex] = getNavigationHeader(raw)
 
 % Parsing header
 lineIndex = 0;
-hdr.version = [];
+hdr = struct('version',[],'leapSeconds',[]);
 while 1
     lineIndex = lineIndex + 1;
     line = raw{lineIndex};
@@ -36,8 +36,6 @@ while 1
     % Get leap seconds information from header
     if contains(line,'LEAP SECONDS')
         hdr.leapSeconds = str2double(line(1:20));
-    else
-        hdr.leapSeconds = [];
     end 
     
     if contains(line,'ION ALPHA')

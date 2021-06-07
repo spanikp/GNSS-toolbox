@@ -499,5 +499,82 @@ classdef SATPOS
                 end
             end
         end
+        function obj = fromMultiNavRINEX(navRinexFilename,gpstime,gnssToCompute,localRefPoint,opts)
+            validateattributes(navRinexFilename,{'char'},{'size',[1,nan]},1);
+            assert(isfile(navRinexFilename));
+            validateattributes(gpstime,{'double'},{'size',[nan,2]},2);
+            if nargin < 5
+                opts = SATPOSOptions();
+                if nargin < 4
+                    localRefPoint = nan(1,3);
+                    if nargin < 3
+                        gnssToCompute = 'GREC';
+                    end
+                end
+            end
+            validateattributes(gnssToCompute,{'char'},{'size',[1,nan]},3);
+            gnssToCompute = unique(upper(gnssToCompute));
+            mustBeMember(gnssToCompute,'GREC');
+            validateattributes(localRefPoint,{'double'},{'size',[1,3]},4);
+            validateattributes(opts,{'SATPOSOptions'},{'size',[1,1]},5);
+            
+            finp = fopen(navRinexFilename,'r');
+            raw = textscan(finp,'%s','Delimiter','\n','Whitespace','');
+            raw = raw{1};
+            
+            assert(raw{1}(41)=='M','Input file is not MULTI-GNSS broadcast ephemeris file!');
+            endOfHeaderIdx = find(cellfun(@(x) contains(x,'END OF HEADER'),raw));
+            assert(length(endOfHeaderIdx)==1,'Invalid RINEX format! Input file has no or more than one "END OF HEADER" strings present!');
+            hdr = struct('version',floor(str2double(raw{1}(1:10))),'leapSeconds',[]);
+            
+            brdcContent = raw(endOfHeaderIdx+1:end);
+            gnsses = 'GREC';
+            ephBlockLength = containers.Map({'G','R','E','C'},{8,4,8,8});
+            obj = [];
+            for i = 1:length(gnsses)
+                gnss_ = gnsses(i);
+                if ~ismember(gnss_,gnssToCompute), continue; end
+                gnssEphSelIdx = find(cellfun(@(x) startsWith(x,gnss_),brdcContent))';
+                
+                blockLines = ephBlockLength(gnss_);
+                gnssEphSelIdx = repmat(gnssEphSelIdx,[blockLines,1]);
+                for j = 1:blockLines-1
+                    gnssEphSelIdx(j+1,:) = gnssEphSelIdx(j+1,:) + j;
+                end
+                gnssEphSelIdx = gnssEphSelIdx(:);
+                body = brdcContent(gnssEphSelIdx);
+                
+                brdc = struct('hdr',hdr,'eph',[],'sat',[],'gnss',gnss_);
+                [eph,sat] = getEphemerisFromNavigationBody(body,gnss_,brdc.hdr.version);
+                brdc.eph = eph;
+                brdc.sat = sat;
+                
+                satTimeFlags = true(size(gpstime,1),length(brdc.sat));
+                leapSecondsStartStop = getLeapSeconds(gpstime);
+                if leapSecondsStartStop(2) ~= leapSecondsStartStop(1)
+                    error('Computation not design to make computation when number of leap second change! Code needs to be adapted!');
+                end
+                leapSeconds = leapSecondsStartStop(1);
+                [ECEF,local,SVclockCorr,ephs,ephsIdx] = SATPOS.getBroadcastPosition(brdc.sat,gpstime,brdc,localRefPoint,satTimeFlags,leapSeconds,opts);
+                
+                % Setup SATPOS object
+                objGnss = SATPOS();
+                objGnss.gnss = gnss_;
+                objGnss.ephType = 'broadcast';
+                objGnss.ephFolder = '';
+                objGnss.ephList = '';
+                objGnss.satList = brdc.sat;
+                objGnss.gpstime = gpstime;
+                objGnss.ECEF = ECEF;
+                objGnss.localRefPoint = localRefPoint;
+                objGnss.satTimeFlags = satTimeFlags;
+                objGnss.SVclockCorr = SVclockCorr;
+                objGnss.local = local;
+                objGnss.opts = opts;
+                objGnss.ephs = ephs;
+                objGnss.ephsIdx = ephsIdx;
+                obj = [obj, objGnss];
+            end
+        end
     end
 end
