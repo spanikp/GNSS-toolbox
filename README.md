@@ -25,7 +25,6 @@ GNSS-toolbox is a set of functions and classes written in MATLAB language to loa
 ## Requirements/dependencies
 
 * Toolbox was developed and tested in MATLAB R2020a
-* For unpacking files downloaded from GNSS datacenters [7-zip](https://www.7-zip.org/download.html) application is used, so executable has to be added in system `PATH` variable
 * `OBSRNX` class uses fast string to double conversion [str2doubleq](https://www.mathworks.com/matlabcentral/fileexchange/28893-fast-string-to-double-conversion). Function needs to be converted to MEX file and added in MATLAB path. If the function is not available then MATLAB native `str2double` is used.
 * for coordinate conversion MATLAB Mapping Toolbox is used
 

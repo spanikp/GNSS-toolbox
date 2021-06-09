@@ -71,16 +71,7 @@ switch satsys
 end
 
 % Downloading file
-fprintf(' -> %s [downloading]', filename);
-
-% Default method using Matlab mget function
-try 
-    server = ftp(servername);    % Open FTP server
-    cd(server, path);            % Change directory at FTP server
-    mget(server,filename);       % Download file
-catch
-    warning('Default method FTP via mget failed!');
-end
+fprintf(' -> %s [downloading]\n', filename);
 
 % Try another approach (download file from IGS BKG https server via websave
 try
@@ -94,31 +85,23 @@ end
 % Rename navigation message file
 gnssExtension = containers.Map({'G','R','E','C'},{'n','g','l','c'});
 filenamev2 = sprintf('brdc%s0.%s%s.gz',doy,yy,gnssExtension(satsys));
-fprintf('Renaming file:    %s -> %s\n', filename(1:end-3), filenamev2);
+fprintf('    Renaming archive: %s -> %s\n',filename,filenamev2);
 movefile(filename,filenamev2);
 
-% extract file
+% Extract downloaded archive with broadcast ephemeris file
 if extract
-	[~, cmdout] = system('7z --help');
-	if contains(cmdout,'not recognized as an internal or external command')
-		cd(currentFolder);
-		error('\n7-Zip application not found!\nPlease install before continue or provide unzipped navigation messages.\nLink to download: https://www.7-zip.org/download.html');
-	else
-        fprintf('[extract]\n');
-        % unix(['gzip -d -f ', filename]); % If gzip is installed
-        
-        system(['7z e ', filenamev2, ' -oTmp']); % If 7z is installed
-        if exist('Tmp','dir')
-            f = dir('Tmp');
-            f = f(arrayfun(@(x) isfile(fullfile('Tmp',x.name)),f));
-            assert(length(f)==1,'At this stage there should be only one file in "Tmp" folder!');
-            movefile(fullfile('Tmp',f.name),strrep(filenamev2,'.gz',''));
-            rmdir Tmp s;
-        end
-        
-        % Remove original navigation message
-        delete(filenamev2)
-	end
+    fprintf('[extract]\n');
+    gunzip(filenamev2,'tmp');
+    if exist('tmp','dir')
+        f = dir('tmp');
+        f = f(arrayfun(@(x) isfile(fullfile('Tmp',x.name)),f));
+        assert(length(f)==1,'At this stage there should be only one file in "Tmp" folder!');
+        movefile(fullfile('tmp',f.name),strrep(filenamev2,'.gz',''));
+        rmdir tmp s;
+    end
+    
+    % Remove original navigation message
+    delete(filenamev2)
 end
 
 cd(currentFolder);
