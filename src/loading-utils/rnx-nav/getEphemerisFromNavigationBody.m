@@ -179,7 +179,7 @@ else
             sscanf(bodyBuffer{li+6}(f3),'%f');
             sscanf(bodyBuffer{li+6}(f4),'%f')];
         %%%% Line 8
-        nFieldsLine8 = (length(bodyBuffer{li+7})-4)/19;
+        nFieldsLine8 = round((length(bodyBuffer{li+7})-4)/19);
         if nFieldsLine8 == 4
             block(39:42) = [str2double(bodyBuffer{li+7}(f1));
                 str2double(bodyBuffer{li+7}(f2));
