@@ -32,6 +32,7 @@ dt = datetime(mTime,'ConvertFrom','datenum');
 doy = sprintf('%03d',day(dt,'DayOfYear'));
 yyyy = datestr(mTime,'yyyy');
 yy = datestr(mTime,'yy');
+gnss_abbrev = containers.Map({'G','R','E','C'},{'n','g','l','c'});
 
 % Setting  of individual servers according to satellite system:
 % GR - using IGS CDDIS server - filename is RINEX v2
@@ -78,9 +79,15 @@ try
     fileURL = ['https://',servername,'/root_ftp/',path,filename];
     websave(filename,fileURL);
 catch
-    warning('Download method websave from HTTP IGS BKG server failed!');
+    warning(sprintf('Download method websave from HTTP IGS BKG server failed!\nFile "%s" not accessible!',filename));
+    try
+        filenameAltV2 = ['brdc',doy,'0.',yy,gnss_abbrev(satsys),'.Z'];
+        fileURL = ['https://',servername,'/root_ftp/',path,filenameAltV2];
+        websave(filename,fileURL);
+    catch
+        warning(sprintf('Download method websave from HTTP IGS BKG server failed!\nFile "%s" not accessible!',filenameAltV2));
+    end
 end
-
 
 % Rename navigation message file
 gnssExtension = containers.Map({'G','R','E','C'},{'n','g','l','c'});
@@ -94,7 +101,7 @@ if extract
     gunzip(filenamev2,'tmp');
     if exist('tmp','dir')
         f = dir('tmp');
-        f = f(arrayfun(@(x) isfile(fullfile('Tmp',x.name)),f));
+        f = f(arrayfun(@(x) isfile(fullfile('tmp',x.name)),f));
         assert(length(f)==1,'At this stage there should be only one file in "Tmp" folder!');
         movefile(fullfile('tmp',f.name),strrep(filenamev2,'.gz',''));
         rmdir tmp s;
