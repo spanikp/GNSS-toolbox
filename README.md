@@ -1,4 +1,5 @@
-# GNSS-toolbox 
+# GNSS-toolbox
+[![DOI](https://zenodo.org/badge/200371988.svg)](https://zenodo.org/badge/latestdoi/200371988)
 
 | Branch | Travis CI | Azure Pipelines |
 | ----------- | ----------- | ----------- |
