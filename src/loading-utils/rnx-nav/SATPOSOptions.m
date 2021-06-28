@@ -26,6 +26,13 @@ classdef SATPOSOptions
         %             - selected ephemeris reference time is closest to computation time
         %
         % According GPS-ICD we should always use ephemeris such that tk < 0
+        
+        checkTransmissionTime (1,1) logical = true
+        % FLag to control if for broadcast ephemeris calculation there
+        % should be taken into account actual time of transmission of the
+        % navigation message. If set to true it may lead to calculation of
+        % satellite position which would not be computed during real
+        % measurement from real navigation signal in field.
     end
     methods
         function obj = SATPOSOptions(obj)

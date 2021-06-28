@@ -322,7 +322,11 @@ classdef SATPOS
                 end
                 
                 PRNephAll = brdc.eph{selEph};
-                %ecef = zeros(nnz(PRNtimeSel),3);
+                
+                % Extract navigation message transmission time
+                transmissionWeek = PRNephAll(33,:)';
+                transmissionSecond = PRNephAll(39,:)';
+                transmissionTime = gps2matlabtime([transmissionWeek,transmissionSecond]);
                 
                 % Time variables
                 GPSTimeWanted = gpstime(PRNtimeSel,:);
@@ -353,7 +357,8 @@ classdef SATPOS
                 end
                 
                 % Find previous epochs and throw error if there are NaN values
-                [ephAge,idxEpoch] = getEphReferenceEpoch(satsys,mTimeWanted,mTimeGiven,ageCritical,opts.brdcEphemerisComputationDirection);
+                [ephAge,idxEpoch] = getEphReferenceEpoch(satsys,mTimeWanted,mTimeGiven,transmissionTime,...
+                    ageCritical,opts.brdcEphemerisComputationDirection,opts.checkTransmissionTime);
                 if all(isnan(idxEpoch))
                     fprintf('(skipped - missing previous ephemeris)\n');
                     continue;
