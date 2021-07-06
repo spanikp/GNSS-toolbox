@@ -324,9 +324,15 @@ classdef SATPOS
                 PRNephAll = brdc.eph{selEph};
                 
                 % Extract navigation message transmission time
-                transmissionWeek = PRNephAll(33,:)';
-                transmissionSecond = PRNephAll(39,:)';
-                transmissionTime = gps2matlabtime([transmissionWeek,transmissionSecond]);
+                if ismember(satsys,'GEC')
+                    transmissionWeek = PRNephAll(33,:)';
+                    transmissionSecond = PRNephAll(39,:)';
+                    transmissionTime = gps2matlabtime([transmissionWeek,transmissionSecond]);
+                else
+                    % For GLONASS transmission time is not in message
+                    % (using ephemeris reference time as transmission time)
+                    transmissionTime = PRNephAll(11,:)';
+                end
                 
                 % Time variables
                 GPSTimeWanted = gpstime(PRNtimeSel,:);

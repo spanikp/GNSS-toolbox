@@ -54,10 +54,8 @@ for j = 1:length(mTimeWanted)
     % Check transmission time of the navigation message and select only
     % reference epochs with valid transmission time (transmission time is
     % before moment of required computation)
-    if checkTransmissionTime
+    if (checkTransmissionTime) && (satsys ~= 'R')
         selValidTransmissionTime = transmissionTime < mTimeWanted(j);
-        %datetime(transmissionTime,'ConvertFrom','datenum')
-        %datetime(mTimeWanted(j),'ConvertFrom','datenum')
     else
         selValidTransmissionTime = true(size(transmissionTime));
     end

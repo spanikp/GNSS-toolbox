@@ -137,7 +137,8 @@ for processingParts = 1:2
         i = i + processDirection;
         
         % Compute new rotation matrix for updated time ti
-        ymd = [year(mti), month(mti), day(mti)];
+        ymd = datevec(mti);
+        ymd = ymd(:,1:3);
         ThetaG0 = getGMST(ymd);
         ThetaGi   = ThetaG0 + const.wE*rem(ti,86400);
         R_ThetaGi = [cos(ThetaGi), -sin(ThetaGi), 0;
