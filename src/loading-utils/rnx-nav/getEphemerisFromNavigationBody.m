@@ -64,9 +64,9 @@ if satsys == 'R'
         tt(6) = sscanf(bodyBuffer{li}(sec_idx),'%f');
         
         % Skip record if there is non-zero number of seconds !!!
-        if tt(6) ~= 0 || (tt(5) ~= 15 && tt(5) ~= 45) 
-            continue;
-        end
+        %if tt(6) ~= 0 || (tt(5) ~= 15 && tt(5) ~= 45) 
+        %    continue;
+        %end
         
         if brdcVersion == 2
             tt(1) = tt(1) + 2000;
