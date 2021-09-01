@@ -169,6 +169,9 @@ else
             sscanf(bodyBuffer{li+4}(f3),'%f');
             sscanf(bodyBuffer{li+4}(f4),'%f')];
         %%%% Line 6
+        bodyBuffer{li+5} = pad(bodyBuffer{li+5},80);
+        if strcmp(bodyBuffer{li+5}(f2),'                   '), bodyBuffer{li+5}(f2) = ' 0.000000000000e+00'; end
+        if strcmp(bodyBuffer{li+5}(f4),'                   '), bodyBuffer{li+5}(f4) = ' 0.000000000000e+00'; end
         block(31:34) = [sscanf(bodyBuffer{li+5}(f1),'%f');
             sscanf(bodyBuffer{li+5}(f2),'%f');
             sscanf(bodyBuffer{li+5}(f3),'%f');

@@ -510,30 +510,38 @@ classdef SATPOS
                 end
             end
         end
-        function obj = fromMultiNavRINEX(navRinexFilename,gpstime,gnssToCompute,localRefPoint,opts)
+        function obj = fromNavRINEX(navRinexFilename,gpstime,gnssToCompute,satsToComputeMap,localRefPoint,opts)
             validateattributes(navRinexFilename,{'char'},{'size',[1,nan]},1);
             assert(isfile(navRinexFilename));
             validateattributes(gpstime,{'double'},{'size',[nan,2]},2);
-            if nargin < 5
+            if nargin < 6
                 opts = SATPOSOptions();
-                if nargin < 4
+                if nargin < 5
                     localRefPoint = nan(1,3);
-                    if nargin < 3
-                        gnssToCompute = 'GREC';
+                    if nargin < 4
+                        satsToComputeMap = containers.Map({'G','R','E','C'},nan(1,4));
+                        if nargin < 3
+                            gnssToCompute = 'GREC';
+                        end
                     end
                 end
             end
             validateattributes(gnssToCompute,{'char'},{'size',[1,nan]},3);
             gnssToCompute = unique(upper(gnssToCompute));
             mustBeMember(gnssToCompute,'GREC');
-            validateattributes(localRefPoint,{'double'},{'size',[1,3]},4);
-            validateattributes(opts,{'SATPOSOptions'},{'size',[1,1]},5);
+            validateattributes(satsToComputeMap,{'containers.Map','double'},{},5);
+            not_given_gnss_map = setdiff({'G','R','E','C'},satsToComputeMap.keys);
+            for i = 1:length(not_given_gnss_map)
+                satsToComputeMap(not_given_gnss_map{i}) = nan;
+            end
+            
+            validateattributes(localRefPoint,{'double'},{'size',[1,3]},5);
+            validateattributes(opts,{'SATPOSOptions'},{'size',[1,1]},6);
             
             finp = fopen(navRinexFilename,'r');
             raw = textscan(finp,'%s','Delimiter','\n','Whitespace','');
             raw = raw{1};
             
-            assert(raw{1}(41)=='M','Input file is not MULTI-GNSS broadcast ephemeris file!');
             endOfHeaderIdx = find(cellfun(@(x) contains(x,'END OF HEADER'),raw));
             assert(length(endOfHeaderIdx)==1,'Invalid RINEX format! Input file has no or more than one "END OF HEADER" strings present!');
             hdr = struct('version',floor(str2double(raw{1}(1:10))),'leapSeconds',[]);
@@ -566,7 +574,25 @@ classdef SATPOS
                     error('Computation not design to make computation when number of leap second change! Code needs to be adapted!');
                 end
                 leapSeconds = leapSecondsStartStop(1);
+                
+                % Compute only satellites given in 'satsToComputeMap' (if not specified all sats from file will be computed)
+                satsToCompute = unique(satsToComputeMap(gnss_));
+                if all(isnan(satsToCompute))
+                    satsToCompute = brdc.sat;
+                else
+                    satsToCompute(isnan(satsToCompute)) = [];
+                end
+                sats_diff = setdiff(satsToCompute,brdc.sat);
+                if ~isempty(sats_diff)
+                    warning(sprintf('Following required sats (%s system) are not in the navigation file: %s',gnss_,strjoin(strsplit(num2str(sats_diff),' '),',')));
+                end
+                
+                sel = ismember(brdc.sat,satsToCompute);
+                brdc.sat = brdc.sat(sel);
+                brdc.eph = brdc.eph(sel);
+                satTimeFlags = satTimeFlags(:,sel);
                 [ECEF,local,SVclockCorr,ephs,ephsIdx] = SATPOS.getBroadcastPosition(brdc.sat,gpstime,brdc,localRefPoint,satTimeFlags,leapSeconds,opts);
+                
                 
                 % Setup SATPOS object
                 objGnss = SATPOS();
