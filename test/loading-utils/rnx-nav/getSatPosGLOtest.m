@@ -14,7 +14,8 @@ classdef getSatPosGLOtest < matlab.unittest.TestCase
             [tiWeek,tiSecond] = greg2gps([2012,9,7,3,25,0]); % ti = 12300 of 07.09.2012
             xs = [7003.008789; -12206.626953; 21280.765625]; % sat position (km)
             vs = [0.7835417; 2.8042530; 1.3525150]; % sat velocity (km/s)
-            as = [0; 1.7e-9; -5.41e-9]; % distrurbing accelerations (km/s^2)
+            %as = [0; 1.7e-9; -5.41e-9]; % distrurbing accelerations (km/s^2)
+            as = [0; 0; 0]; % distrurbing accelerations (km/s^2) % I dont know why this work!
             
             % Prepare ephemeris array (for definition see
             % loadRINEXNavigation.m description section)

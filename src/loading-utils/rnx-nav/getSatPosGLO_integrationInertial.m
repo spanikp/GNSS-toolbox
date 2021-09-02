@@ -34,6 +34,7 @@ step_RK = 1;
 const = getBroadcastConstants('R');
 
 % Assigning eph values to variables
+ymd  = eph(1:3)';    % Year-Month-Day vector
 te   = eph(8);       % Time of ephemeris -> UTC second of the week
 tff  = GLOtime(:,2); % Select only seconds of week
 mTimee = eph(11);
@@ -43,14 +44,31 @@ re = eph([15,19,23])*1e3;
 ve = eph([16,20,24])*1e3;
 ae = eph([17,21,25])*1e3;
 
+% Computation of Greenwich sidereal time in te epoch (reference epoch of ephemeris in UTC time scale)
+ThetaG0 = getGMST(ymd);
+ThetaGe = ThetaG0 + const.wE*rem(te,86400);
+         
+% Rotation matrix from Terestrial PZ-90 frame to inertial frame
+R_ThetaGe = [cos(ThetaGe), -sin(ThetaGe), 0;
+             sin(ThetaGe),  cos(ThetaGe), 0;
+                        0,             0, 1];
+                    
+% State vector transformation to inertial system           
+ra = R_ThetaGe*re; % position
+va = R_ThetaGe*ve + const.wE*[-ra(2); ra(1); 0]; % velocity
+
 % Switch processing into two part in case the data requires it
 selDirections = [tff >= te, tff < te];
 
 for processingParts = 1:2
+    
     tf = tff(selDirections(:,processingParts));
+    %mt = mTime(selDirections(:,processingParts));
     
     % Check if tf is non-empty
-    if isempty(tf), continue; end
+    if isempty(tf)
+        continue;
+    end
     
     % Time variable in loop, initialized with time of ephemeris (starting point
     % of forward or backward integration)
@@ -58,9 +76,11 @@ for processingParts = 1:2
     mti = mTimee;
     
     % Initial state of satellite position and velocity
-    initialState = [re; ve];
-    lengthIntegration = ceil((max(abs(te - [min(tf),max(tf)])) + 1)/step_RK);
+    initialState = [ra; va];
+    lengthIntegration = ceil((max(abs(te - [min(tf), max(tf)])) + 1)/step_RK);
     int_val = zeros(3,lengthIntegration);
+    R_ThetaGi = R_ThetaGe;
+    
     
     % Determine direction of integration
     if tf(end) > te
@@ -79,25 +99,39 @@ for processingParts = 1:2
     while true
         
         % Integrated position transformed from inertial back to ECEF system
-        int_val(:,i) = initialState(1:3);
+        int_val(:,i) = R_ThetaGi'*initialState(1:3);
+        
+        % Acceleration in inertial frame (due to lunar and solar gravity)
+        aa = R_ThetaGi*ae; % J_xa_m + J_xa_s
+                           % J_ya_m + J_ya_s
+                           % J_za_m + J_za_s
         
         % Derivative computation k1 - k4
-        k1 = getStateDerivation(const,initialState,ae);
+        k1 = getStateDerivation(const,initialState,aa);
         temp = initialState + processDirection*k1*(step_RK/2);
         
-        k2 = getStateDerivation(const,temp,ae);
+        k2 = getStateDerivation(const,temp,aa);
         temp = initialState + processDirection*k2*(step_RK/2);
         
-        k3 = getStateDerivation(const,temp,ae);
+        k3 = getStateDerivation(const,temp,aa);
         temp = initialState + processDirection*k3*step_RK;
         
-        k4 = getStateDerivation(const,temp,ae);
+        k4 = getStateDerivation(const,temp,aa);
         initialState = initialState + processDirection*step_RK*(k1 + 2*(k2 + k3) + k4)/6;
         
         % Make time and index step (forward or backward)
         ti = ti + processDirection*step_RK;
         mti = mti + (processDirection*step_RK)/86400;
         i = i + processDirection;
+        
+        % Compute new rotation matrix for updated time ti
+        ymd = datevec(mti);
+        ymd = ymd(:,1:3);
+        ThetaG0 = getGMST(ymd);
+        ThetaGi   = ThetaG0 + const.wE*rem(ti,86400);
+        R_ThetaGi = [cos(ThetaGi), -sin(ThetaGi), 0;
+                     sin(ThetaGi),  cos(ThetaGi), 0;
+                                0,             0, 1];
         
         % End loop when ti reach endOfIntegration (index 1 or end, depend on processDirection)
         switch processDirection
