@@ -1,4 +1,4 @@
-function stateDer = getStateDerivation(const, stateVector, acc)
+function stateDer = getStateDerivation_integrationInertial(const, stateVector, acc)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to get numeric derivative of state vector. Function simply put 
 % input velocity in state vector pos_vel and compute acceleration using

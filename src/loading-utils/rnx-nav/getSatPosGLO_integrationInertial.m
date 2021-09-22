@@ -1,4 +1,4 @@
-function pos = getSatPosGLO(GLOtime,eph)
+function pos = getSatPosGLO_integrationInertial(GLOtime,eph)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function to compute position of GLONASS satellites using set of broadcast
 % parameters using Runge-Kutta integration method of 4-th order. Both
@@ -32,6 +32,7 @@ step_RK = 1;
 
 % Loading constants for GLONASS system
 const = getBroadcastConstants('R');
+sidereal_const = 1.00273790934;
 
 % Assigning eph values to variables
 ymd  = eph(1:3)';    % Year-Month-Day vector
@@ -46,7 +47,8 @@ ae = eph([17,21,25])*1e3;
 
 % Computation of Greenwich sidereal time in te epoch (reference epoch of ephemeris in UTC time scale)
 ThetaG0 = getGMST(ymd);
-ThetaGe = ThetaG0 + const.wE*rem(te,86400);
+ThetaGe = ThetaG0 + sidereal_const*rem(te,86400);
+ThetaGe = rem(pi*ThetaGe/43200,2*pi);
          
 % Rotation matrix from Terestrial PZ-90 frame to inertial frame
 R_ThetaGe = [cos(ThetaGe), -sin(ThetaGe), 0;
@@ -66,9 +68,7 @@ for processingParts = 1:2
     %mt = mTime(selDirections(:,processingParts));
     
     % Check if tf is non-empty
-    if isempty(tf)
-        continue;
-    end
+    if isempty(tf), continue; end
     
     % Time variable in loop, initialized with time of ephemeris (starting point
     % of forward or backward integration)
@@ -80,8 +80,8 @@ for processingParts = 1:2
     lengthIntegration = ceil((max(abs(te - [min(tf), max(tf)])) + 1)/step_RK);
     int_val = zeros(3,lengthIntegration);
     R_ThetaGi = R_ThetaGe;
-    
-    
+    ThetaGi = ThetaGe;
+      
     % Determine direction of integration
     if tf(end) > te
         processDirection = 1;  % Forward integration
@@ -107,16 +107,16 @@ for processingParts = 1:2
                            % J_za_m + J_za_s
         
         % Derivative computation k1 - k4
-        k1 = getStateDerivation(const,initialState,aa);
+        k1 = getStateDerivation_integrationInertial(const,initialState,aa);
         temp = initialState + processDirection*k1*(step_RK/2);
         
-        k2 = getStateDerivation(const,temp,aa);
+        k2 = getStateDerivation_integrationInertial(const,temp,aa);
         temp = initialState + processDirection*k2*(step_RK/2);
         
-        k3 = getStateDerivation(const,temp,aa);
+        k3 = getStateDerivation_integrationInertial(const,temp,aa);
         temp = initialState + processDirection*k3*step_RK;
         
-        k4 = getStateDerivation(const,temp,aa);
+        k4 = getStateDerivation_integrationInertial(const,temp,aa);
         initialState = initialState + processDirection*step_RK*(k1 + 2*(k2 + k3) + k4)/6;
         
         % Make time and index step (forward or backward)
@@ -125,10 +125,12 @@ for processingParts = 1:2
         i = i + processDirection;
         
         % Compute new rotation matrix for updated time ti
-        ymd = datevec(mti);
-        ymd = ymd(:,1:3);
-        ThetaG0 = getGMST(ymd);
-        ThetaGi   = ThetaG0 + const.wE*rem(ti,86400);
+        %ymd = datevec(mti);
+        %ymd = ymd(:,1:3);
+        %ThetaG0 = getGMST(ymd);
+        %ThetaGi = rem((pi/43200)*(ThetaG0 + sidereal_const*rem(ti,86400)),2*pi);
+        ThetaGi = ThetaGi + const.wE*processDirection*step_RK;
+        
         R_ThetaGi = [cos(ThetaGi), -sin(ThetaGi), 0;
                      sin(ThetaGi),  cos(ThetaGi), 0;
                                 0,             0, 1];

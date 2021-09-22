@@ -23,10 +23,10 @@ switch satsys
         
     case 'R'
         % See ICD GLONASS CDMA General Description, section J.2.1 (page 53)
-        const.GM  = 3.986004418e14;
-        const.wE  = 7.2921151467e-5;
+        const.GM  = 3.9860044e14;
+        const.wE  = 7.292115e-5;
         const.a   = 6378136;
-        const.C20 = -1082.62575e-6;
+        const.C20 = -1082.6257e-6;
         
     case 'E'
         const.GM  = 3.986004418e14;

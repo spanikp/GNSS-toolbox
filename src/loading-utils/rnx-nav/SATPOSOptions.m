@@ -33,6 +33,11 @@ classdef SATPOSOptions
         % navigation message. If set to true it may lead to calculation of
         % satellite position which would not be computed during real
         % measurement from real navigation signal in field.
+        
+        glonassComputeInInertial (1,1) logical = true
+        % Flag to control if Runge-Kutta integration will be done in
+        % inertail system or not (see difference in getSatPosGLO.m and 
+        % getSatPosGLO_integrationInertial.m
     end
     methods
         function obj = SATPOSOptions(obj)

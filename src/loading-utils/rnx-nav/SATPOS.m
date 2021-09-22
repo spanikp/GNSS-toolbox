@@ -396,7 +396,20 @@ classdef SATPOS
                             clockRelativisticCorr = getSVRelativityClockCorrection(satsys,eph(22),eph(20),rad2deg(aux(:,3)));
                         case 'R'
                             GLOtime = GLOTimeWanted(selTime,:);
-                            ecef = getSatPosGLO(GLOtime,eph)';
+                            if opts.glonassComputeInInertial
+                                ecef_pz90 = getSatPosGLO_integrationInertial(GLOtime,eph)';
+                            else
+                                ecef_pz90 = getSatPosGLO(GLOtime,eph)';
+                            end
+                            
+                            % Transform to WGS-84
+                            % PZ-90.11
+                            ecef = transformPZ90_WGS84(ecef_pz90,[0.01115,0.01716,0.02041]*1e-6,1.000000008,[0.013,-0.106,-0.022]);
+                            
+                            % PZ-90
+                            %mas = 4.84813681e-9;
+                            %ecef = transformPZ90_WGS84(ecef_pz90,[-19,-4,353]*mas,0.999999997,[0.07,-0.0,-0.77]);
+                            
                             % Relativistic correction for GLONASS is included in polynomial coefficients
                             clockPolyCorr = getSVClockCorrection(GLOtime,eph(7:8)',[eph(12:13);0]');
                             clockRelativisticCorr = zeros(size(GLOtime,1),1);

@@ -15,7 +15,7 @@ function ThetaG0 = getGMST(YMD)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 JD = juliandate(datetime(YMD(:,1),YMD(:,2),YMD(:,3)),'juliandate');
-Tu = (JD -  2451545.0)/36525;
+Tu = (JD - 2451545.0)/36525;
 
 ThetaG0 = (6*3600 + 41*60 + 50.54841) + 8640184.812866*Tu + 0.093104*Tu.^2 - (6.2e-6)*Tu.^3; % in seconds
-ThetaG0 = (rem(ThetaG0,86400)/86400)*2*pi; % in radians
+%ThetaG0 = (rem(ThetaG0,86400)/86400)*2*pi; % in radians
