@@ -11,6 +11,13 @@ classdef computeDOPTest < matlab.unittest.TestCase
             recPos = [4.066576555345881,1.321310819070842,4.717024959080501]*1e6;
             res = computeDOP('xyz.csv',recPos);
             writetable(res,'xyz_dop.csv','Delimiter',',');
+            res
+        end
+        function test_computeDOP_enu(obj)
+            recPos = [4.066576555345881,1.321310819070842,4.717024959080501]*1e6;
+            res = computeDOP_enu('xyz.csv',recPos);
+            writetable(res,'xyz_dop.csv','Delimiter',',');
+            res
         end
     end
 end
