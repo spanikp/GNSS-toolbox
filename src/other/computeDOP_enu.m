@@ -42,8 +42,6 @@ function dop_table = computeDOP_enu(input_file, rec_pos)
         % Fill geometry part of G
         ENUnorm = [d.E(sel),d.N(sel),d.U(sel)]./d.r(sel);
         G(:,1:3) = ENUnorm;
-        G_all = [ENUnorm, ones(nnz(sel),1)];
-        %G(:,4) = ones(nnz(sel),1);
         
         % Fill time part of G
         for iSatsys = 1:nGNSS
@@ -61,13 +59,12 @@ function dop_table = computeDOP_enu(input_file, rec_pos)
         G(:,all(G == 0)) = [];
         
         Q = inv(G'*G);
-        Q_all = inv(G_all'*G_all);
         pdop(i) = sqrt(sum(trace(Q(1:3,1:3))));
         hdop(i) = sqrt(Q(1,1) + Q(2,2));
         vdop(i) = sqrt(Q(3,3));
-        tdop(i,1) = sqrt(Q_all(4,4)); 
+        tdop(i,1) = sqrt(sum(diag(Q(4:end,4:end))));
         tdop(i,1+setdiff(1:4,empty_gnss)) = sqrt(diag(Q(4:end,4:end)));
-        gdop(i) = sqrt(sum(trace(Q_all)));
+        gdop(i) = sqrt(sum(diag(Q)));
     end
     
     dop_table = table(posixtime(tUnique),pdop,hdop,vdop,gdop,tdop(:,1),tdop(:,2),...
