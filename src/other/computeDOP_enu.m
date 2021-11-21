@@ -35,29 +35,38 @@ function dop_table = computeDOP_enu(input_file, rec_pos)
     for i = 1:nEpochs
         tc = tUnique(i);
         sel = d.t == tc;
-        if nnz(sel) < 4, continue; end
+        nMinimumSats = 3 + length(unique(d.gnss(sel)));
+        if nnz(sel) < nMinimumSats, continue; end 
         G = zeros(nnz(sel),nGNSS+3);
         
         % Fill geometry part of G
         ENUnorm = [d.E(sel),d.N(sel),d.U(sel)]./d.r(sel);
         G(:,1:3) = ENUnorm;
-        G_all = [ENUnorm,ones(nnz(sel),1)];
+        G_all = [ENUnorm, ones(nnz(sel),1)];
+        %G(:,4) = ones(nnz(sel),1);
         
         % Fill time part of G
         for iSatsys = 1:nGNSS
             sel_gnss = d.gnss(sel) == GNSS{iSatsys};
-            if nnz(sel_gnss) >= 4
-                G = G_all(sel_gnss,:);
-                Q = inv(G'*G);
-                tdop(i,iSatsys+1) = sqrt(Q(4,4));
-            end
+            G(sel_gnss,3+iSatsys) = ones(nnz(sel_gnss),1);
+            %if nnz(sel_gnss) >= 4
+            %    G = G_all(sel_gnss,:);
+            %    Q = inv(G'*G);
+            %    tdop(i,iSatsys+1) = sqrt(Q(4,4));
+            %end
         end
         
+        % Remove empty columns
+        empty_gnss = find(all(G == 0)) - 3;
+        G(:,all(G == 0)) = [];
+        
+        Q = inv(G'*G);
         Q_all = inv(G_all'*G_all);
-        pdop(i) = sqrt(sum(trace(Q_all(1:3,1:3))));
-        hdop(i) = sqrt(Q_all(1,1) + Q_all(2,2));
-        vdop(i) = sqrt(Q_all(3,3));
-        tdop(i,1) = sqrt(Q_all(4,4));
+        pdop(i) = sqrt(sum(trace(Q(1:3,1:3))));
+        hdop(i) = sqrt(Q(1,1) + Q(2,2));
+        vdop(i) = sqrt(Q(3,3));
+        tdop(i,1) = sqrt(Q_all(4,4)); 
+        tdop(i,1+setdiff(1:4,empty_gnss)) = sqrt(diag(Q(4:end,4:end)));
         gdop(i) = sqrt(sum(trace(Q_all)));
     end
     
